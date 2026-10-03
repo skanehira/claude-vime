@@ -10,7 +10,7 @@ const keyOf = (yomi: string, resizes: readonly Resize[]) => JSON.stringify([yomi
 
 class FakeEngine implements ConversionEngine {
   readonly calls: Call[] = []
-  // While set, convert waits for it, as a bridge process still running does.
+  // While set, convert waits for it, as an anthy-agent process still running does.
   gate: Promise<void> | undefined
 
   constructor(private readonly answers: Readonly<Record<string, readonly Segment[]>>) {}

@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import { anthyEngine } from './anthy'
+import { anthyEngine, findAgent } from './anthy'
 import type { Run } from './anthy'
 import { candidatePage } from './band'
 import { Composer } from './editor'
@@ -9,14 +9,27 @@ import type { Candidates } from '../types'
 
 const candidates = atom({ plugin: 'vime', key: 'candidates' } as const, null as Candidates | null)
 
-// The run function of the dispatch being answered: an edit's bridge process
+// The run function of the dispatch being answered: an edit's agent process
 // belongs to that edit's hook, so each hook sets it before the composer runs.
 let run: Run | undefined
-// Made on session.start, which knows the plugin's folder (and fires again on a reload).
+// Made on session.start, once the agent is found (and again on a reload).
 let composer: Composer | undefined
 
-const runBridge: Run = (argv, init) =>
+const runAgent: Run = (argv, init) =>
   run === undefined ? Promise.reject(new Error('vime: no hook is running')) : run(argv, init)
+
+const PROBE_TIMEOUT_MS = 3000
+
+/** VIME_ANTHY_AGENT, or the first installed of anthy-agent-unicode and anthy-agent. */
+async function agentOf($: EngineInterface): Promise<string | undefined> {
+  const custom = await $.env.get('VIME_ANTHY_AGENT')
+  const probe = (argv: readonly string[]) =>
+    $.process.run(argv, { timeoutMs: PROBE_TIMEOUT_MS }).then(
+      ran => ran.exitCode === 0,
+      () => false,
+    )
+  return findAgent(probe, custom === undefined || custom === '' ? undefined : custom)
+}
 
 async function showState($: EngineInterface, current: Composer) {
   $.ui.status(current.isOn ? 'あ' : undefined)
@@ -26,7 +39,7 @@ async function showState($: EngineInterface, current: Composer) {
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    composer = new Composer(anthyEngine(runBridge, `${$.plugin.root}/bridge/bridge.lua`))
+    composer = new Composer(anthyEngine(runAgent, await agentOf($)))
     // A reload starts a fresh composer (off): clear what the last one left on screen.
     await showState($, composer)
     await $.command.register({ name: 'vime', description: 'Turn Japanese (romaji to kana and kanji) input on or off', immediate: true })

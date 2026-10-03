@@ -11,7 +11,7 @@ export type Resize = readonly [number, number]
 
 /**
  * Kana-to-kanji conversion with no state of its own: each call converts the
- * reading again and replays the resizes so far, as the bridge process does.
+ * reading again and replays the resizes so far, as one anthy-agent run does.
  */
 export interface ConversionEngine {
   convert(yomi: string, resizes: readonly Resize[]): Promise<readonly Segment[]>
