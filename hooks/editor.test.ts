@@ -78,6 +78,11 @@ class Box {
     for (const ch of chars) await this.edit({ start: this.cursor, end: this.cursor, inputText: ch, key: { key: ch } })
   }
 
+  /** A burst of keys or a paste: one edit carrying several characters and no key. */
+  async insert(text: string) {
+    await this.edit({ start: this.cursor, end: this.cursor, inputText: text })
+  }
+
   async press(key: KeyEvent) {
     if (key.key === 'backspace') {
       await this.edit({ start: this.cursor - 1, end: this.cursor, inputText: '', key })
@@ -104,6 +109,11 @@ const BACKSPACE: KeyEvent = { key: 'backspace' }
 const LEFT: KeyEvent = { key: 'left' }
 const RIGHT: KeyEvent = { key: 'right' }
 const SHIFT_LEFT: KeyEvent = { key: 'left', shift: true }
+const SHIFT_RIGHT: KeyEvent = { key: 'right', shift: true }
+const UP: KeyEvent = { key: 'up' }
+const DOWN: KeyEvent = { key: 'down' }
+const CTRL_P: KeyEvent = { key: 'p', ctrl: true }
+const CTRL_N: KeyEvent = { key: 'n', ctrl: true }
 
 describe('Composer off', () => {
   test('typing passes through as typed', async () => {
@@ -193,6 +203,73 @@ describe('Composer composing', () => {
     expect(box.shown()).toEqual({ text: 'き', cursor: 1, decorations: [{ start: 0, end: 1, underline: true }] })
   })
 
+  test('a burst of romaji arriving as one edit is taken a character at a time', async () => {
+    const { box } = await boxOn()
+    await box.type('k')
+
+    await box.insert('youha')
+
+    expect(box.shown()).toEqual({ text: 'きょうは', cursor: 4, decorations: [{ start: 0, end: 4, underline: true }] })
+  })
+
+  test('a burst of romaji into an empty run starts one', async () => {
+    const { box } = await boxOn('x')
+
+    await box.insert('kana')
+
+    expect(box.shown()).toEqual({ text: 'xかな', cursor: 3, decorations: [{ start: 1, end: 3, underline: true }] })
+  })
+
+  test('a paste that is not all romaji commits the run and goes in as pasted', async () => {
+    const { box } = await boxOn()
+    await box.type('kan')
+
+    await box.insert('Hello world')
+
+    expect(box.shown()).toEqual({ text: 'かんHello world', cursor: 13, decorations: [] })
+  })
+
+  test('a slash command typed at the start of the box goes in as typed, and its arguments compose kana', async () => {
+    const { box } = await boxOn()
+
+    await box.type('/vime')
+    const command = box.shown()
+    await box.type(' ka')
+
+    expect([command, box.shown()]).toEqual([
+      { text: '/vime', cursor: 5, decorations: [] },
+      { text: '/vime か', cursor: 7, decorations: [{ start: 6, end: 7, underline: true }] },
+    ])
+  })
+
+  test('Backspace away from the end of the run commits it and deletes as usual', async () => {
+    const { box } = await boxOn('ab')
+    box.cursor = 1
+    await box.type('kan')
+
+    await box.edit({ start: 0, end: 1, inputText: '', key: BACKSPACE })
+
+    expect(box.shown()).toEqual({ text: 'かんb', cursor: 0, decorations: [] })
+  })
+
+  test('sending the prompt while composing commits the run into what is sent', async () => {
+    const { box, composer } = await boxOn('> ')
+    await box.type('kan')
+
+    const sent = await composer.commitForSubmit(box.text)
+
+    expect(sent).toBe('> かん')
+  })
+
+  test('sending a prompt that no longer holds the run sends it as it is', async () => {
+    const { box, composer } = await boxOn()
+    await box.type('kan')
+
+    const sent = await composer.commitForSubmit('something else')
+
+    expect(sent).toBe('something else')
+  })
+
   test('ctrl+j turns it off, committing the kana as it stands', async () => {
     const { box } = await boxOn()
     await box.type('kan')
@@ -234,7 +311,14 @@ describe('Composer converting', () => {
 
     await box.type(' ')
 
-    expect(box.text).toBe('きょうは良い')
+    expect(box.shown()).toEqual({
+      text: 'きょうは良い',
+      cursor: 6,
+      decorations: [
+        { start: 0, end: 4, underline: true, bold: true },
+        { start: 4, end: 6, underline: true },
+      ],
+    })
   })
 
   test('right and left move the focus between segments', async () => {
@@ -282,6 +366,62 @@ describe('Composer converting', () => {
         { start: 2, end: 3, underline: true },
         { start: 3, end: 5, underline: true },
       ],
+    })
+  })
+
+  test('shift+right lengthens the focused segment', async () => {
+    const answers = { ...ANSWERS, [keyOf('きょうはいい', [[0, -1], [0, 1]])]: ANSWERS[keyOf('きょうはいい', [])]! }
+    const { box, engine } = await boxOn('', new FakeEngine(answers))
+    await box.type('kyouhaii')
+    await box.type(' ')
+    await box.press(SHIFT_LEFT)
+
+    await box.press(SHIFT_RIGHT)
+
+    expect({ text: box.text, convert: engine.calls.at(-1) }).toEqual({
+      text: '今日は良い',
+      convert: ['convert', 'きょうはいい', [[0, -1], [0, 1]]],
+    })
+  })
+
+  test('down and ctrl+n pick the next candidate, up and ctrl+p the previous one', async () => {
+    const answers = { [keyOf('かん', [])]: [{ yomi: 'かん', candidates: ['缶', '感', '管'] }] }
+    const { box, composer } = await boxOn('', new FakeEngine(answers))
+    await box.type('kan')
+    await box.type(' ')
+
+    const indices: (number | undefined)[] = []
+    for (const key of [DOWN, UP, UP, CTRL_N, CTRL_P, CTRL_P]) {
+      await box.press(key)
+      indices.push(composer.candidates()?.index)
+    }
+
+    expect(indices).toEqual([1, 0, 2, 0, 2, 1])
+  })
+
+  test('any other key commits the conversion, then goes in as usual', async () => {
+    const { box, engine } = await boxOn()
+    await box.type('kyouhaii')
+    await box.type(' ')
+
+    await box.type('A')
+
+    expect({ shown: box.shown(), learned: engine.calls.at(-1) }).toEqual({
+      shown: { text: '今日は良いA', cursor: 6, decorations: [] },
+      learned: ['commit', 'きょうはいい', [], [0, 0]],
+    })
+  })
+
+  test('a conversion the engine fails keeps the kana underlined and answers the error', async () => {
+    const { box } = await boxOn()
+    await box.type('kyou')
+
+    const answer = await box.edit({ start: 3, end: 3, inputText: ' ', key: { key: ' ' } })
+
+    expect(answer).toEqual({
+      kind: 'box',
+      box: { text: 'きょう', cursor: 3, decorations: [{ start: 0, end: 3, underline: true }] },
+      error: 'no answer for ["きょう",[]]',
     })
   })
 

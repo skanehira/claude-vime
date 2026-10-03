@@ -42,15 +42,20 @@ export const register: Register = on => {
   on('prompt.edit', async ($, e, next) => {
     if (composer === undefined) return next(e)
     run = (argv, init) => $.process.run(argv, init)
-    try {
-      const answer = await composer.edit(e)
-      await showState($, composer)
-      if (answer.kind === 'box') return answer.box
-      return next(answer.edit === undefined ? e : { ...e, text: answer.edit.text })
-    } catch (error) {
-      $.ui.toast(error instanceof Error ? error.message : String(error))
-      return { text: e.text, cursor: e.cursor }
-    }
+    const answer = await composer.edit(e)
+    await showState($, composer)
+    if (answer.kind === 'pass') return next(answer.edit === undefined ? e : { ...e, text: answer.edit.text })
+    if (answer.error !== undefined) $.ui.toast(answer.error)
+    return answer.box
+  })
+
+  // Enter sends the prompt when it does not reach prompt.edit: the run goes out committed.
+  on('prompt.submit', async ($, e, next) => {
+    if (composer === undefined) return next(e)
+    run = (argv, init) => $.process.run(argv, init)
+    const text = await composer.commitForSubmit(e.text)
+    await showState($, composer)
+    return next(text === e.text ? e : { ...e, text })
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
