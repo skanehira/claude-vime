@@ -30,10 +30,9 @@ const CONTINUES_RUN = /^[a-zA-Z0-9,.\-/[\]';]$/
 const PRINTABLE = /^[\x20-\x7e]$/
 
 // Key shapes as a terminal delivers them to prompt.edit (observed on Claude Code 2.1.288):
-// shift+space puts in a space and arrives as `space` with shift, with no key binding to change;
 // a plain Enter never arrives (it submits); option+arrows arrive with `meta`, ctrl+arrows
-// with `ctrl`, and shift+arrows not reliably at all.
-const isToggle = (e: Edit) => e.key?.key === 'space' && e.key.shift === true
+// with `ctrl`, and shift+arrows not reliably at all. No key turns input on or off: no key
+// reaches a mod in every terminal without a key binding, so /vime does.
 const isCtrl = (key: KeyEvent | undefined, name: string) => key?.ctrl === true && key.key === name
 const isResize = (key: KeyEvent | undefined) => key?.meta === true || key?.ctrl === true
 
@@ -168,12 +167,6 @@ export class Composer {
   }
 
   private async answer(e: Edit): Promise<Answer> {
-    if (isToggle(e)) {
-      // A commit keeps the run's length (only a trailing n becomes ん), so the cursor stays.
-      const text = this.on ? (await this.commitInto(e.text)).text : e.text
-      this.on = !this.on
-      return { kind: 'box', box: { text, cursor: e.cursor, decorations: [] } }
-    }
     if (!this.on) return { kind: 'pass' }
     // A burst of keys or a paste comes with no key; a key that puts in text of its own (ctrl+y) is not one.
     const takes = this.session.isTypingLatin() ? PRINTABLE : CONTINUES_RUN

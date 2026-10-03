@@ -116,8 +116,8 @@ async function boxOn(text = '', engine = new FakeEngine(ANSWERS)) {
   return { box: new Box(composer, text), engine, composer }
 }
 
-// As observed: shift+space puts in a space and arrives as `space` with shift, with no key binding
-// to change; a plain Enter never reaches prompt.edit (it submits).
+// As observed: shift+space arrives as `space` with shift where the terminal reports it (and as a
+// plain space where it does not); a plain Enter never reaches prompt.edit (it submits).
 const SHIFT_SPACE: KeyEvent = { key: 'space', shift: true }
 const OPTION_RETURN: KeyEvent = { key: 'return', meta: true }
 const BACKSPACE: KeyEvent = { key: 'backspace' }
@@ -141,35 +141,6 @@ describe('Composer off', () => {
     expect(box.shown()).toEqual({ text: 'ka', cursor: 2, decorations: [] })
   })
 
-  test('shift+space turns it on and off without putting in a space', async () => {
-    const box = new Box(new Composer(new FakeEngine(ANSWERS)), 'x')
-
-    await box.edit({ start: 1, end: 1, inputText: ' ', key: SHIFT_SPACE })
-    const isOnAfterFirst = box.composer.isOn
-    await box.type('ka')
-    await box.edit({ start: 2, end: 2, inputText: ' ', key: SHIFT_SPACE })
-    await box.type('b')
-
-    expect({ isOnAfterFirst, isOn: box.composer.isOn, shown: box.shown() }).toEqual({
-      isOnAfterFirst: true,
-      isOn: false,
-      shown: { text: 'xかb', cursor: 3, decorations: [] },
-    })
-  })
-
-  test('shift+space turns it on without changing the box, and typing then composes kana', async () => {
-    const box = new Box(new Composer(new FakeEngine(ANSWERS)), 'x')
-
-    await box.edit({ start: 1, end: 1, inputText: ' ', key: SHIFT_SPACE })
-    const afterToggle = box.shown()
-    await box.type('ka')
-
-    expect([afterToggle, box.shown(), box.composer.isOn]).toEqual([
-      { text: 'x', cursor: 1, decorations: [] },
-      { text: 'xか', cursor: 2, decorations: [{ start: 1, end: 2, underline: true }] },
-      true,
-    ])
-  })
 })
 
 describe('Composer composing', () => {
@@ -382,17 +353,13 @@ describe('Composer composing', () => {
     expect({ answer, text: box.text }).toEqual({ answer: { kind: 'pass' }, text: 'abcd' })
   })
 
-  test('shift+space turns it off, committing the kana as it stands', async () => {
-    const { box } = await boxOn()
-    await box.type('kan')
+  test('shift+space is a Space like any other: it converts and turns nothing off', async () => {
+    const { box, composer } = await boxOn()
+    await box.type('kyouhaii')
 
     await box.edit({ start: box.cursor, end: box.cursor, inputText: ' ', key: SHIFT_SPACE })
-    await box.type('a')
 
-    expect({ shown: box.shown(), isOn: box.composer.isOn }).toEqual({
-      shown: { text: 'かんa', cursor: 3, decorations: [] },
-      isOn: false,
-    })
+    expect({ text: box.text, isOn: composer.isOn }).toEqual({ text: '今日は良い', isOn: true })
   })
 })
 
