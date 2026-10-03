@@ -21,6 +21,15 @@ function recordStatus(on: On) {
   return shown
 }
 
+test('a (re)load clears the status line, so it never shows あ left over from before', async ($, on) => {
+  standInForEngine(on)
+  const shown = recordStatus(on)
+
+  await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+
+  expect(shown).toEqual([undefined])
+})
+
 test('/vime turns Japanese input on and off, showing あ on the status line while it is on', async ($, on) => {
   standInForEngine(on)
   const shown = recordStatus(on)
@@ -31,6 +40,6 @@ test('/vime turns Japanese input on and off, showing あ on the status line whil
 
   expect({ answers: [first.text, second.text], shown }).toEqual({
     answers: ['vime: on', 'vime: off'],
-    shown: ['あ', undefined],
+    shown: [undefined, 'あ', undefined],
   })
 })

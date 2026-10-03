@@ -27,6 +27,8 @@ async function showState($: EngineInterface, current: Composer) {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     composer = new Composer(anthyEngine(runBridge, `${$.plugin.root}/bridge/bridge.lua`))
+    // A reload starts a fresh composer (off): clear what the last one left on screen.
+    await showState($, composer)
     await $.command.register({ name: 'vime', description: 'Turn Japanese (romaji to kana and kanji) input on or off', immediate: true })
     return next(e)
   })
