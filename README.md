@@ -79,6 +79,7 @@ While Japanese input is on, the status line shows `あ`, or `A` in ASCII mode.
 | left / right, ctrl+b / ctrl+f         | moves the cursor                | commits the kana, then moves the cursor   | focuses the previous / next segment                      |
 | ctrl+a / ctrl+e (or option+left / right) | (as without the mod)         | commits the kana, then acts as usual      | shortens / lengthens the focused segment                 |
 | `;`                                   | opens ASCII mode                | opens or closes ASCII mode, keeping the kana | commits the conversion, then opens ASCII mode         |
+| `A`–`Z`                               | starts English text             | commits the kana, then starts English text | commits the conversion, then starts English text      |
 | ctrl+k                                | deletes to the end of the line | commits the kana                          | commits the converted part and goes on to the next kana part, or commits the run |
 | Backspace                             | deletes a character             | deletes the last kana (きょ counts as one) | goes back to the kana                                    |
 | Enter                                 | sends the prompt                | sends it with the kana committed          | sends it with the conversion committed                   |
@@ -94,7 +95,18 @@ While converting, the cursor sits at the end of the focused segment. That keeps 
 
 A slash command's name typed at the start of the box goes in as typed, so `/vime` and other commands work while Japanese input is on; after the name and a space, romaji composes kana again.
 
-Several characters arriving as one edit (a paste, or keys Claude Code folds together) are taken one at a time when they are all romaji (any printable characters in ASCII mode), and otherwise commit the kana and go in as they came.
+Several characters arriving as one edit (a paste, or keys Claude Code folds together) are taken one at a time when they are all romaji (any printable characters in ASCII mode or English text), and otherwise commit the kana and go in as they came.
+
+### English text (an uppercase letter)
+
+As in vime.nvim, an uppercase letter commits the kana pending in place and starts English text. Everything typed after it, lowercase, digits, symbols and Space included, goes in as it is and is not converted, until ctrl+k commits it (or the prompt is sent, or Japanese input is turned off). `;` `;` closes it, after which romaji compose kana again.
+
+```text
+type   kanReact is   the box shows  かんReact is   (かん committed, React is still open)
+ctrl+k               the box keeps  かんReact is
+```
+
+ASCII mode differs: it keeps the kana pending instead of committing them, and ends at the next `;`.
 
 ### ASCII mode (`;`)
 
@@ -142,7 +154,6 @@ While converting, the band above the prompt lists the focused segment's candidat
 
 - **Esc does not commit.** Outside vim mode Esc cancels in Claude Code; in vim mode it switches to normal mode. Neither reaches a mod.
 - **There is no key for the previous candidate.** ctrl+p recalls history, and up, down, ctrl+n, Tab and shift+arrows never reach a mod. Pick a candidate by its number instead.
-- **Uppercase letters do not start English text on their own.** Outside ASCII mode they commit the kana and go in as typed; type English in ASCII mode (`;`) or with Japanese input off.
 - **No katakana or alphabet commit (vime.nvim's F7 / F10), no dictionary registration, no SKK dictionary import, no completion.**
 
 ## Troubleshooting
