@@ -375,7 +375,7 @@ describe('Composer converting', () => {
         text: '> 今日は良い',
         cursor: 4,
         decorations: [
-          { start: 2, end: 5, underline: true, bold: true },
+          { start: 2, end: 5, underline: true, bold: true, backgroundColor: 'selectionBg' },
           { start: 5, end: 7, underline: true },
         ],
       },
@@ -405,7 +405,7 @@ describe('Composer converting', () => {
       text: 'きょうは良い',
       cursor: 3,
       decorations: [
-        { start: 0, end: 4, underline: true, bold: true },
+        { start: 0, end: 4, underline: true, bold: true, backgroundColor: 'selectionBg' },
         { start: 4, end: 6, underline: true },
       ],
     })
@@ -427,14 +427,14 @@ describe('Composer converting', () => {
         cursor: 4,
         decorations: [
           { start: 0, end: 3, underline: true },
-          { start: 3, end: 5, underline: true, bold: true },
+          { start: 3, end: 5, underline: true, bold: true, backgroundColor: 'selectionBg' },
         ],
       },
       {
         text: '今日はいい',
         cursor: 2,
         decorations: [
-          { start: 0, end: 3, underline: true, bold: true },
+          { start: 0, end: 3, underline: true, bold: true, backgroundColor: 'selectionBg' },
           { start: 3, end: 5, underline: true },
         ],
       },
@@ -473,7 +473,7 @@ describe('Composer converting', () => {
         text: '今日は良い',
         cursor: 1,
         decorations: [
-          { start: 0, end: 2, underline: true, bold: true },
+          { start: 0, end: 2, underline: true, bold: true, backgroundColor: 'selectionBg' },
           { start: 2, end: 3, underline: true },
           { start: 3, end: 5, underline: true },
         ],
@@ -514,7 +514,7 @@ describe('Composer converting', () => {
       text: '今日は良い',
       cursor: 1,
       decorations: [
-        { start: 0, end: 2, underline: true, bold: true },
+        { start: 0, end: 2, underline: true, bold: true, backgroundColor: 'selectionBg' },
         { start: 2, end: 3, underline: true },
         { start: 3, end: 5, underline: true },
       ],
@@ -735,7 +735,7 @@ describe('Composer ASCII mode (;)', () => {
         cursor: 8,
         decorations: [
           { start: 0, end: 5, underline: true },
-          { start: 5, end: 9, underline: true, bold: true },
+          { start: 5, end: 9, underline: true, bold: true, backgroundColor: 'selectionBg' },
         ],
       },
       committed: { text: 'Reactを使って', cursor: 9, decorations: [] },
@@ -787,7 +787,7 @@ describe('Composer ASCII mode (;)', () => {
         cursor: 6,
         decorations: [
           { start: 0, end: 6, underline: true },
-          { start: 6, end: 7, underline: true, bold: true },
+          { start: 6, end: 7, underline: true, bold: true, backgroundColor: 'selectionBg' },
         ],
       },
       committed: { text: '今日は良いX缶', cursor: 7, decorations: [] },

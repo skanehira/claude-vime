@@ -11,7 +11,7 @@ export type KeyEvent = { key: string; ctrl?: true; shift?: true; meta?: true }
 /** One edit as `prompt.edit` hands it: the box before it and the splice. */
 export type Edit = { text: string; cursor: number; start: number; end: number; inputText: string; key?: KeyEvent }
 
-export type Decoration = { start: number; end: number; underline: true; bold?: true }
+export type Decoration = { start: number; end: number; underline: true; bold?: true; backgroundColor?: string }
 
 export type BoxAnswer = { text: string; cursor: number; decorations: Decoration[] }
 
@@ -28,6 +28,8 @@ export type Answer = { kind: 'box'; box: BoxAnswer; error?: string } | { kind: '
 const STARTS_RUN = /^[a-zA-Z,.\-/[\];]$/
 const CONTINUES_RUN = /^[a-zA-Z0-9,.\-/[\]';]$/
 const PRINTABLE = /^[\x20-\x7e]$/
+// A theme key (Claude Code's text-selection background), so it follows the light or dark theme.
+const FOCUSED_BACKGROUND = 'selectionBg'
 
 // Key shapes as a terminal delivers them to prompt.edit (observed on Claude Code 2.1.288):
 // a plain Enter never arrives (it submits); option+arrows arrive with `meta`, ctrl+arrows
@@ -315,7 +317,9 @@ export class Composer {
     const segments = p.segments.map((segment, i): Decoration => {
       const run: Decoration = { start: at, end: at + segment.length, underline: true }
       at += segment.length
-      return i === p.current ? { ...run, bold: true } : run
+      // The focused segment carries the theme's selection background, so all of it stands out
+      // (the terminal's cursor marks only its last character).
+      return i === p.current ? { ...run, bold: true, backgroundColor: FOCUSED_BACKGROUND } : run
     })
     return [...around(this.anchor, p.before), ...segments, ...around(at, p.after)]
   }
