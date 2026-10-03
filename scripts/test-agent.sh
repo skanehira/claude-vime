@@ -44,6 +44,14 @@ firsts() {
   ' "$work/answer.txt"
 }
 
+# second: the second candidate of the first GET-CANDIDATES answer
+second() {
+  awk '
+    /^\+DATA [0-9]+ [0-9]+$/ { on = 1; n = 0; next }
+    on == 1 { n++; if (n == 2) { print; exit } }
+  ' "$work/answer.txt"
+}
+
 # expect <name> <actual file> <expected line>
 expect() {
   printf '%s\n' "$3" > "$work/expected.txt"
@@ -63,9 +71,11 @@ for agent in $agents; do
   fi
   tested=1
 
-  talk "$agent" 'CONVERT 0 きょうはいい' 'GET-CANDIDATES 0 0 0 1024' 'GET-CANDIDATES 0 1 0 1024' 'GET-CANDIDATES 0 2 0 1024'
+  # The second segment's first candidate is not checked: いい and 良い score the same,
+  # and anthy orders a tie with the C library's qsort, so it differs between macOS and Linux.
+  talk "$agent" 'CONVERT 0 きょうはいい' 'GET-CANDIDATES 0 0 0 1024' 'GET-CANDIDATES 0 2 0 1024'
   firsts > "$work/actual.txt"
-  expect "convert answers each segment's candidates, and -1 past the last" "$work/actual.txt" '今日は 良い -'
+  expect "convert answers each segment's candidates, and -1 past the last" "$work/actual.txt" '今日は -'
 
   # RESIZE-SEGMENT's last field is a direction flag, not an amount: 0 lengthens, anything else shortens.
   talk "$agent" 'CONVERT 0 きょうはいい' 'RESIZE-SEGMENT 0 0 1' 'GET-CANDIDATES 0 0 0 1024'
@@ -76,13 +86,16 @@ for agent in $agents; do
   firsts > "$work/actual.txt"
   expect "RESIZE-SEGMENT with 0 lengthens the first segment" "$work/actual.txt" 'きょうはい'
 
+  talk "$agent" 'CONVERT 0 きょうはいい' 'GET-CANDIDATES 0 1 0 1024'
+  chosen=$(second)
+
   talk "$agent" 'CONVERT 0 きょうはいい' 'SELECT-CANDIDATE 0 0 0' 'SELECT-CANDIDATE 0 1 1' 'COMMIT 0 0'
   tail -1 "$work/answer.txt" > "$work/actual.txt"
   expect "the commit answers +OK" "$work/actual.txt" '+OK'
 
   talk "$agent" 'CONVERT 0 きょうはいい' 'GET-CANDIDATES 0 0 0 1024' 'GET-CANDIDATES 0 1 0 1024'
   firsts > "$work/actual.txt"
-  expect "a committed choice (segment 1, candidate 1) comes first the next time" "$work/actual.txt" '今日は いい'
+  expect "a committed choice (segment 1, candidate 1) comes first the next time" "$work/actual.txt" "今日は $chosen"
 done
 
 if [ "$tested" -eq 0 ]; then
