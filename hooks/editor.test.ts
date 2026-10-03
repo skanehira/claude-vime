@@ -353,7 +353,7 @@ describe('Composer composing', () => {
     expect({ answer, text: box.text }).toEqual({ answer: { kind: 'pass' }, text: 'abcd' })
   })
 
-  test('shift+space is a Space like any other: it converts and turns nothing off', async () => {
+  test('shift+space while composing converts like Space and turns nothing off', async () => {
     const { box, composer } = await boxOn()
     await box.type('kyouhaii')
 
@@ -534,6 +534,23 @@ describe('Composer converting', () => {
       text: '今日は良い',
       convert: ['convert', 'きょうはいい', [[0, -1], [0, 1]]],
     })
+  })
+
+  test('shift+space picks the previous candidate, wrapping round to the last', async () => {
+    const answers = { [keyOf('かん', [])]: [{ candidates: ['缶', '感', '管'] }] }
+    const { box, composer } = await boxOn('', new FakeEngine(answers))
+    await box.type('kan')
+    await box.type(' ')
+
+    const indices: (number | undefined)[] = []
+    await box.type(' ')
+    indices.push(composer.candidates()?.index)
+    for (let i = 0; i < 2; i++) {
+      await box.edit({ start: box.cursor, end: box.cursor, inputText: ' ', key: SHIFT_SPACE })
+      indices.push(composer.candidates()?.index)
+    }
+
+    expect({ indices, text: box.text }).toEqual({ indices: [1, 0, 2], text: '管' })
   })
 
   test('a number picks that candidate of the band, Space the next one', async () => {

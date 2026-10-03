@@ -211,7 +211,11 @@ export class Composer {
       const isInRun = e.start >= this.anchor && e.end <= end
       const number = /^[1-9]$/.test(ch) ? candidateByNumber(candidates.list.length, candidates.index, Number(ch)) : undefined
       if (key === 'backspace' && e.end >= this.anchor && e.end <= end && e.start === e.end - 1) this.session.cancel()
-      else if (isInRun && ch === ' ') this.session.nextCandidate()
+      // Space picks the next candidate, shift+space (where the terminal reports shift) the previous one.
+      else if (isInRun && ch === ' ') {
+        if (e.key?.shift === true) this.session.prevCandidate()
+        else this.session.nextCandidate()
+      }
       else if (isInRun && /^[1-9]$/.test(ch)) {
         if (number !== undefined) this.session.select(number)
       } else if ((key === 'left' && isResize(e.key)) || isCtrl(e.key, 'a')) await this.session.shrink()
