@@ -68,7 +68,7 @@ To turn Japanese input on and off with ctrl+j, free ctrl+j from its default acti
 
 ## Keys
 
-While Japanese input is on, the status line shows `あ`.
+While Japanese input is on, the status line shows `あ`, or `A` in ASCII mode.
 
 | Key                                   | While nothing is being composed | While composing kana                      | While converting                                         |
 | ------------------------------------- | ------------------------------- | ----------------------------------------- | -------------------------------------------------------- |
@@ -78,7 +78,8 @@ While Japanese input is on, the status line shows `あ`.
 | `1`–`9`                               | types the digit                 | adds the digit to the kana (`3ji` → `3じ`) | picks the candidate the band numbers so                  |
 | left / right, ctrl+b / ctrl+f         | moves the cursor                | commits the kana, then moves the cursor   | focuses the previous / next segment                      |
 | ctrl+a / ctrl+e (or option+left / right) | (as without the mod)         | commits the kana, then acts as usual      | shortens / lengthens the focused segment                 |
-| ctrl+k                                | deletes to the end of the line | commits the kana                          | commits the conversion                                   |
+| `;`                                   | opens ASCII mode                | opens or closes ASCII mode, keeping the kana | commits the conversion, then opens ASCII mode         |
+| ctrl+k                                | deletes to the end of the line | commits the kana                          | commits the converted part and goes on to the next kana part, or commits the run |
 | Backspace                             | deletes a character             | deletes the last kana (きょ counts as one) | goes back to the kana                                    |
 | Enter                                 | sends the prompt                | sends it with the kana committed          | sends it with the conversion committed                   |
 | any other key                         | (as without the mod)            | commits the kana, then acts as usual      | commits the conversion, then goes in after it            |
@@ -93,7 +94,22 @@ While converting, the cursor sits at the end of the focused segment. That keeps 
 
 A slash command's name typed at the start of the box goes in as typed, so `/vime` and other commands work while Japanese input is on; after the name and a space, romaji composes kana again.
 
-Several characters arriving as one edit (a paste, or keys Claude Code folds together) are taken one at a time when they are all romaji, and otherwise commit the kana and go in as they came.
+Several characters arriving as one edit (a paste, or keys Claude Code folds together) are taken one at a time when they are all romaji (any printable characters in ASCII mode), and otherwise commit the kana and go in as they came.
+
+### ASCII mode (`;`)
+
+As in vime.nvim, `;` opens ASCII mode, and everything you type goes in as it is (uppercase, digits, symbols and spaces) until `;` again. Kana you typed before stay pending, and romaji typed after the closing `;` start new kana:
+
+```text
+type   ;React;wotsukatte   the box shows  Reactをつかって
+Space                      the box shows  Reactを使って   (only the kana part is converted)
+ctrl+k                     the box keeps  Reactを使って
+```
+
+- Space converts the first kana part; the latin parts stay as they are around it. With several kana parts, ctrl+k commits one and goes on to convert the next.
+- Right after a latin part, Space puts in a space.
+- Backspace deletes latin characters one by one and stays in ASCII mode.
+- There is no way to type `;` itself while in ASCII mode; close it first.
 
 ## Behaviour to know
 
@@ -126,7 +142,7 @@ While converting, the band above the prompt lists the focused segment's candidat
 
 - **Esc does not commit.** Outside vim mode Esc cancels in Claude Code; in vim mode it switches to normal mode. Neither reaches a mod.
 - **There is no key for the previous candidate.** ctrl+p recalls history, and up, down, ctrl+n, Tab and shift+arrows never reach a mod. Pick a candidate by its number instead.
-- **Uppercase letters do not start English text.** They commit the kana and go in as typed; type English with Japanese input off.
+- **Uppercase letters do not start English text on their own.** Outside ASCII mode they commit the kana and go in as typed; type English in ASCII mode (`;`) or with Japanese input off.
 - **No katakana or alphabet commit (vime.nvim's F7 / F10), no dictionary registration, no SKK dictionary import, no completion.**
 
 ## Troubleshooting
