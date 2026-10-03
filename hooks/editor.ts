@@ -2,6 +2,7 @@
 // kana (or its conversion) lives in the box's own text, underlined, between
 // `anchor` and `anchor + shown.length`, and each edit either changes the run,
 // commits it, or passes through to the engine's editor.
+import { candidateByNumber } from './band'
 import { Session } from './session'
 import type { ConversionEngine } from './session'
 
@@ -25,8 +26,13 @@ export type Answer = { kind: 'box'; box: BoxAnswer; error?: string } | { kind: '
 const STARTS_RUN = /^[a-z,.\-/[\]]$/
 const CONTINUES_RUN = /^[a-z0-9,.\-/[\]']$/
 
-const isToggle = (key: KeyEvent | undefined) => key?.ctrl === true && key.key === 'j'
+// Key shapes as a terminal delivers them to prompt.edit (observed on Claude Code 2.1.288):
+// ctrl+j, once unbound from chat:newline, arrives as `enter` putting in a newline, while
+// a plain Enter never arrives (it submits); option+arrows arrive with `meta`, ctrl+arrows
+// with `ctrl`, and shift+arrows not reliably at all.
+const isToggle = (e: Edit) => e.key?.key === 'enter'
 const isCtrl = (key: KeyEvent | undefined, name: string) => key?.ctrl === true && key.key === name
+const isResize = (key: KeyEvent | undefined) => key?.meta === true || key?.ctrl === true
 
 // A slash command's name being typed at the start of the box goes in as typed.
 const isSlashCommandName = (before: string) => /^\/\S*$/.test(before)
@@ -45,6 +51,16 @@ export class Composer {
   private anchor = 0
   /** The run as it stands in the box; '' when there is none. */
   private shown = ''
+  /**
+   * The last box this composer answered, and the box the engine guessed before
+   * the answer came: keys typed while an answer was pending arrive on the guess.
+   */
+  private last: { answered: { text: string; cursor: number }; guessed: { text: string; cursor: number } } | undefined
+  /**
+   * Keys the engine put in raw (it applies keys typed while an answer was pending
+   * itself, whatever the hook answers), and the box it put them into.
+   */
+  private raw: { box: string; text: string } | undefined
 
   constructor(private readonly engine: ConversionEngine) {
     this.session = new Session(engine)
@@ -68,30 +84,78 @@ export class Composer {
     this.on = !this.on
   }
 
-  async edit(e: Edit): Promise<Answer> {
-    if (this.isBusy) return { kind: 'box', box: { text: e.text, cursor: e.cursor, decorations: this.decorations() } }
-    if (this.shown !== '' && e.text.slice(this.anchor, this.anchor + this.shown.length) !== this.shown) this.forget()
+  async edit(input: Edit): Promise<Answer> {
+    if (this.isBusy) return { kind: 'box', box: { text: input.text, cursor: input.cursor, decorations: this.decorations() } }
+    const last = this.last
+    this.last = undefined
+    if (last !== undefined && input.text === last.guessed.text && input.text !== last.answered.text) {
+      // Typed while the last answer was pending: the engine puts these keys in itself.
+      if (input.start === input.end && input.inputText !== '') this.raw = { box: last.answered.text, text: input.inputText }
+      else this.forget()
+      return { kind: 'pass' }
+    }
     this.isBusy = true
     try {
-      return await this.answer(e)
+      // Raw keys taken back out leave a run, so a pass from here always carries the repaired box.
+      const e = await this.repaired(input)
+      if (this.shown !== '' && e.text.slice(this.anchor, this.anchor + this.shown.length) !== this.shown) this.forget()
+      const answer = await this.answer(e)
+      if (answer.kind === 'box') this.last = { answered: answer.box, guessed: applied({ kind: 'pass' }, input) }
+      return answer
     } catch (error) {
       // The run stays as it was (a failed conversion changes nothing), so it keeps its underline.
       const message = error instanceof Error ? error.message : String(error)
-      return { kind: 'box', box: { text: e.text, cursor: e.cursor, decorations: this.decorations() }, error: message }
+      return { kind: 'box', box: { text: input.text, cursor: input.cursor, decorations: this.decorations() }, error: message }
     } finally {
       this.isBusy = false
     }
   }
 
   /** The prompt about to be sent, with the run committed into it (learned when it was converted). */
-  async commitForSubmit(text: string): Promise<string> {
+  async commitForSubmit(sent: string): Promise<string> {
+    const found = this.findRaw(sent)
+    const text = found === undefined ? sent : (await this.replay(found)).text
     // A prompt that no longer holds the run goes as it is; the next edit starts over.
     if (this.shown === '' || text.slice(this.anchor, this.anchor + this.shown.length) !== this.shown) return text
     return (await this.commitInto(text)).text
   }
 
+  /**
+   * The edit with any raw keys the engine put in taken back out of its box and
+   * replayed as typed; the edit's own offsets past them move with the result.
+   */
+  private async repaired(input: Edit): Promise<Edit> {
+    const found = this.findRaw(input.text)
+    if (found === undefined) return input
+    const replayed = await this.replay(found)
+    const rawEnd = found.at + found.text.length
+    const moved = (at: number) => (at >= rawEnd ? at + replayed.cursor - rawEnd : at)
+    return { ...input, text: replayed.text, cursor: moved(input.cursor), start: moved(input.start), end: moved(input.end) }
+  }
+
+  /** Where the engine put the raw keys, when `text` is the box it showed with them in. */
+  private findRaw(text: string): { box: string; at: number; text: string } | undefined {
+    const raw = this.raw
+    this.raw = undefined
+    if (raw === undefined || text.length !== raw.box.length + raw.text.length) return undefined
+    let common = 0
+    while (common < raw.box.length && text[common] === raw.box[common]) common++
+    for (let at = Math.max(0, common - raw.text.length); at <= common; at++) {
+      if (text.slice(at, at + raw.text.length) === raw.text && text.slice(0, at) + text.slice(at + raw.text.length) === raw.box) {
+        return { box: raw.box, at, text: raw.text }
+      }
+    }
+    return undefined
+  }
+
+  /** The raw keys typed again on the box they went into. */
+  private async replay(found: { box: string; at: number; text: string }): Promise<{ text: string; cursor: number }> {
+    const typed: Edit = { text: found.box, cursor: found.at, start: found.at, end: found.at, inputText: found.text }
+    return applied(await this.answer(typed), typed)
+  }
+
   private async answer(e: Edit): Promise<Answer> {
-    if (isToggle(e.key)) {
+    if (isToggle(e)) {
       // A commit keeps the run's length (only a trailing n becomes ん), so the cursor stays.
       const text = this.on ? (await this.commitInto(e.text)).text : e.text
       this.on = !this.on
@@ -112,27 +176,30 @@ export class Composer {
 
     const end = this.anchor + this.shown.length
     const isAtEnd = e.start === end && e.end === end
-    const isConverting = this.session.preedit().kind === 'converting'
     const key = e.key?.key
+    const candidates = this.session.candidates()
 
-    if (key === 'return') {
-      const { text, end: cursor } = await this.commitInto(e.text)
-      return { kind: 'box', box: { text, cursor, decorations: [] } }
-    }
-    if (key === 'backspace' && e.end === end && e.start === end - 1) {
-      if (isConverting) this.session.cancel()
-      else this.session.backspace()
+    if (candidates !== undefined) {
+      // Converting: the cursor sits at the focused segment's end, so a key typed or a
+      // Backspace anywhere in the run counts, and left/right always have room to move.
+      const isInRun = e.start >= this.anchor && e.end <= end
+      const number = /^[1-9]$/.test(ch) ? candidateByNumber(candidates.list.length, candidates.index, Number(ch)) : undefined
+      if (key === 'backspace' && isInRun && e.start === e.end - 1) this.session.cancel()
+      else if (isInRun && ch === ' ') this.session.nextCandidate()
+      else if (isInRun && /^[1-9]$/.test(ch)) {
+        if (number !== undefined) this.session.select(number)
+      } else if (key === 'left' && isResize(e.key)) await this.session.shrink()
+      else if (key === 'right' && isResize(e.key)) await this.session.expand()
+      else if (key === 'left' || isCtrl(e.key, 'b')) this.session.prevSegment()
+      else if (key === 'right' || isCtrl(e.key, 'f')) this.session.nextSegment()
+      else if (isInRun && CONTINUES_RUN.test(ch)) return this.continueAfterCommit(e.text, ch)
+      // Anything else typed in the run goes in after all of it, as a kana key would.
+      else if (isInRun && e.start === e.end) return this.commitAndPass({ ...e, cursor: end, start: end, end })
+      else return this.commitAndPass(e)
       return this.render(e.text)
     }
-    if (isConverting) {
-      if ((isAtEnd && ch === ' ') || key === 'down' || isCtrl(e.key, 'n')) this.session.nextCandidate()
-      else if (key === 'up' || isCtrl(e.key, 'p')) this.session.prevCandidate()
-      else if (key === 'left' && e.key?.shift === true) await this.session.shrink()
-      else if (key === 'right' && e.key?.shift === true) await this.session.expand()
-      else if (key === 'left') this.session.prevSegment()
-      else if (key === 'right') this.session.nextSegment()
-      else if (isAtEnd && CONTINUES_RUN.test(ch)) return this.continueAfterCommit(e.text, ch)
-      else return this.commitAndPass(e)
+    if (key === 'backspace' && e.end === end && e.start === end - 1) {
+      this.session.backspace()
       return this.render(e.text)
     }
     if (isAtEnd && ch === ' ') {
@@ -161,7 +228,14 @@ export class Composer {
     const preedit = this.preeditText()
     const next = text.slice(0, this.anchor) + preedit + text.slice(this.anchor + this.shown.length)
     this.shown = preedit
-    return { kind: 'box', box: { text: next, cursor: this.anchor + preedit.length, decorations: this.decorations() } }
+    return { kind: 'box', box: { text: next, cursor: this.cursor(), decorations: this.decorations() } }
+  }
+
+  /** Composing: after the kana. Converting: after the focused segment. */
+  private cursor(): number {
+    const p = this.session.preedit()
+    if (p.kind === 'composing') return this.anchor + p.text.length
+    return this.anchor + p.segments.slice(0, p.current + 1).join('').length
   }
 
   private async continueAfterCommit(text: string, ch: string): Promise<Answer> {
@@ -172,10 +246,13 @@ export class Composer {
     return this.render(before)
   }
 
-  /** Commits the run, then lets the edit through; the run keeps its length, so the edit's offsets hold. */
-  private async commitAndPass(e: Edit): Promise<Answer> {
-    const { text } = await this.commitInto(e.text)
-    return text === e.text ? { kind: 'pass' } : { kind: 'pass', edit: { ...e, text } }
+  /**
+   * Commits the run, then lets `edit` through (the edit as received, or moved by the
+   * caller); the run keeps its length, so the edit's offsets hold.
+   */
+  private async commitAndPass(edit: Edit): Promise<Answer> {
+    const { text } = await this.commitInto(edit.text)
+    return { kind: 'pass', edit: { ...edit, text } }
   }
 
   /** Commits the run: `text` with the committed text in its place, and where that text ends. */

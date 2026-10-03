@@ -88,7 +88,9 @@ class Box {
       await this.edit({ start: this.cursor - 1, end: this.cursor, inputText: '', key })
       return
     }
-    const landing = key.key === 'left' ? this.cursor - 1 : key.key === 'right' ? this.cursor + 1 : this.cursor
+    const isBack = key.key === 'left' || (key.ctrl === true && key.key === 'b')
+    const isForward = key.key === 'right' || (key.ctrl === true && key.key === 'f')
+    const landing = isBack ? this.cursor - 1 : isForward ? this.cursor + 1 : this.cursor
     await this.edit({ start: landing, end: landing, inputText: '', key })
   }
 
@@ -103,17 +105,17 @@ async function boxOn(text = '', engine = new FakeEngine(ANSWERS)) {
   return { box: new Box(composer, text), engine, composer }
 }
 
-const CTRL_J: KeyEvent = { key: 'j', ctrl: true }
-const RETURN: KeyEvent = { key: 'return' }
+// As observed in a terminal: ctrl+j (unbound from chat:newline) arrives as `enter` inserting a newline;
+// a plain Enter never reaches prompt.edit (it submits).
+const CTRL_J: KeyEvent = { key: 'enter' }
+const OPTION_RETURN: KeyEvent = { key: 'return', meta: true }
 const BACKSPACE: KeyEvent = { key: 'backspace' }
 const LEFT: KeyEvent = { key: 'left' }
 const RIGHT: KeyEvent = { key: 'right' }
-const SHIFT_LEFT: KeyEvent = { key: 'left', shift: true }
-const SHIFT_RIGHT: KeyEvent = { key: 'right', shift: true }
-const UP: KeyEvent = { key: 'up' }
-const DOWN: KeyEvent = { key: 'down' }
-const CTRL_P: KeyEvent = { key: 'p', ctrl: true }
-const CTRL_N: KeyEvent = { key: 'n', ctrl: true }
+const OPTION_LEFT: KeyEvent = { key: 'left', meta: true }
+const OPTION_RIGHT: KeyEvent = { key: 'right', meta: true }
+const CTRL_F: KeyEvent = { key: 'f', ctrl: true }
+const CTRL_B: KeyEvent = { key: 'b', ctrl: true }
 
 describe('Composer off', () => {
   test('typing passes through as typed', async () => {
@@ -166,13 +168,13 @@ describe('Composer composing', () => {
     expect(box.shown()).toEqual({ text: 'a', cursor: 1, decorations: [] })
   })
 
-  test('Enter commits the kana, a trailing n as ん, and keeps the box from being submitted', async () => {
+  test('option+Enter commits the kana, a trailing n as ん, then puts in its newline', async () => {
     const { box } = await boxOn()
     await box.type('kan')
 
-    const answer = await box.edit({ start: 3, end: 3, inputText: '', key: RETURN })
+    await box.edit({ start: 2, end: 2, inputText: '\n', key: OPTION_RETURN })
 
-    expect({ kind: answer.kind, shown: box.shown() }).toEqual({ kind: 'box', shown: { text: 'かん', cursor: 2, decorations: [] } })
+    expect(box.shown()).toEqual({ text: 'かん\n', cursor: 3, decorations: [] })
   })
 
   test('a character that cannot continue the run commits it, a trailing n as ん, then goes in after it', async () => {
@@ -294,7 +296,7 @@ describe('Composer converting', () => {
     expect({ shown: box.shown(), candidates: composer.candidates() }).toEqual({
       shown: {
         text: '> 今日は良い',
-        cursor: 7,
+        cursor: 5,
         decorations: [
           { start: 2, end: 5, underline: true, bold: true },
           { start: 5, end: 7, underline: true },
@@ -313,7 +315,7 @@ describe('Composer converting', () => {
 
     expect(box.shown()).toEqual({
       text: 'きょうは良い',
-      cursor: 6,
+      cursor: 4,
       decorations: [
         { start: 0, end: 4, underline: true, bold: true },
         { start: 4, end: 6, underline: true },
@@ -342,7 +344,7 @@ describe('Composer converting', () => {
       },
       {
         text: '今日はいい',
-        cursor: 5,
+        cursor: 3,
         decorations: [
           { start: 0, end: 3, underline: true, bold: true },
           { start: 3, end: 5, underline: true },
@@ -351,16 +353,34 @@ describe('Composer converting', () => {
     ])
   })
 
-  test('shift+left shrinks the focused segment', async () => {
+  test('ctrl+f and ctrl+b move the focus between segments, as in vime.nvim', async () => {
+    const { box, composer } = await boxOn()
+    await box.type('kyouhaii')
+    await box.type(' ')
+
+    await box.press(CTRL_F)
+    await box.type(' ')
+    const onSecond = box.text
+    await box.press(CTRL_B)
+    await box.type(' ')
+
+    expect({ onSecond, text: box.text, candidates: composer.candidates() }).toEqual({
+      onSecond: '今日はいい',
+      text: 'きょうはいい',
+      candidates: { list: ['今日は', 'きょうは'], index: 1 },
+    })
+  })
+
+  test('option+left shrinks the focused segment', async () => {
     const { box } = await boxOn()
     await box.type('kyouhaii')
     await box.type(' ')
 
-    await box.press(SHIFT_LEFT)
+    await box.press(OPTION_LEFT)
 
     expect(box.shown()).toEqual({
       text: '今日は良い',
-      cursor: 5,
+      cursor: 2,
       decorations: [
         { start: 0, end: 2, underline: true, bold: true },
         { start: 2, end: 3, underline: true },
@@ -369,14 +389,14 @@ describe('Composer converting', () => {
     })
   })
 
-  test('shift+right lengthens the focused segment', async () => {
+  test('option+right lengthens the focused segment', async () => {
     const answers = { ...ANSWERS, [keyOf('きょうはいい', [[0, -1], [0, 1]])]: ANSWERS[keyOf('きょうはいい', [])]! }
     const { box, engine } = await boxOn('', new FakeEngine(answers))
     await box.type('kyouhaii')
     await box.type(' ')
-    await box.press(SHIFT_LEFT)
+    await box.press(OPTION_LEFT)
 
-    await box.press(SHIFT_RIGHT)
+    await box.press(OPTION_RIGHT)
 
     expect({ text: box.text, convert: engine.calls.at(-1) }).toEqual({
       text: '今日は良い',
@@ -384,19 +404,19 @@ describe('Composer converting', () => {
     })
   })
 
-  test('down and ctrl+n pick the next candidate, up and ctrl+p the previous one', async () => {
+  test('a number picks that candidate of the band, Space the next one', async () => {
     const answers = { [keyOf('かん', [])]: [{ yomi: 'かん', candidates: ['缶', '感', '管'] }] }
     const { box, composer } = await boxOn('', new FakeEngine(answers))
     await box.type('kan')
     await box.type(' ')
 
     const indices: (number | undefined)[] = []
-    for (const key of [DOWN, UP, UP, CTRL_N, CTRL_P, CTRL_P]) {
-      await box.press(key)
+    for (const key of ['3', ' ', '2', '9']) {
+      await box.type(key)
       indices.push(composer.candidates()?.index)
     }
 
-    expect(indices).toEqual([1, 0, 2, 0, 2, 1])
+    expect({ indices, text: box.text }).toEqual({ indices: [2, 0, 1, 1], text: '感' })
   })
 
   test('any other key commits the conversion, then goes in as usual', async () => {
@@ -425,19 +445,80 @@ describe('Composer converting', () => {
     })
   })
 
-  test('Enter commits the conversion, the engine learning the choices', async () => {
-    const { box, engine } = await boxOn()
+  test('sending the prompt while converting sends the conversion, the engine learning the choices', async () => {
+    const { box, engine, composer } = await boxOn()
     await box.type('kyouhaii')
     await box.type(' ')
     await box.press(RIGHT)
     await box.type(' ')
 
-    await box.press(RETURN)
+    const sent = await composer.commitForSubmit(box.text)
 
-    expect({ shown: box.shown(), learned: engine.calls.at(-1) }).toEqual({
-      shown: { text: '今日はいい', cursor: 5, decorations: [] },
+    expect({ sent, learned: engine.calls.at(-1) }).toEqual({
+      sent: '今日はいい',
       learned: ['commit', 'きょうはいい', [], [0, 1]],
     })
+  })
+
+  // As observed in a terminal: keys typed while a conversion ran reach prompt.edit afterwards as one
+  // edit on the engine's own guess of the box (Space put in); the engine then puts them in raw at
+  // the end of the box it shows, whatever the hook answers.
+  async function typedWhileConverting(box: Box, keys: string) {
+    const guessed: Edit = { text: box.text, cursor: box.cursor, start: box.cursor, end: box.cursor, inputText: ' ' }
+    const answer = await box.composer.edit(guessed)
+    box.apply(answer, guessed)
+    const queued: Edit = { text: guessed.text + ' ', cursor: guessed.cursor + 1, start: guessed.cursor + 1, end: guessed.cursor + 1, inputText: keys }
+    const ignored = await box.composer.edit(queued)
+    box.text = box.text + keys
+    box.cursor = box.text.length
+    box.decorations = []
+    return ignored
+  }
+
+  test('keys typed while a conversion ran, which the engine puts in raw, pass through and are taken as typed on the next key', async () => {
+    const { box, engine } = await boxOn()
+    await box.type('kyouhaii')
+
+    const ignored = await typedWhileConverting(box, 'ka')
+    const raw = box.text
+    await box.type('i')
+
+    expect({ ignored, raw, shown: box.shown(), learned: engine.calls.at(-1) }).toEqual({
+      ignored: { kind: 'pass' },
+      raw: '今日は良いka',
+      shown: { text: '今日は良いかい', cursor: 7, decorations: [{ start: 5, end: 7, underline: true }] },
+      learned: ['commit', 'きょうはいい', [], [0, 0]],
+    })
+  })
+
+  test('a key that cannot continue the run, after raw keys, answers the whole box with the raw keys taken as typed', async () => {
+    const { box } = await boxOn()
+    await box.type('kyouhaii')
+    await typedWhileConverting(box, 'ka')
+
+    await box.type('A')
+
+    expect(box.shown()).toEqual({ text: '今日は良いかA', cursor: 7, decorations: [] })
+  })
+
+  test('keys typed while a conversion ran are taken as typed when the prompt is sent next', async () => {
+    const { box, composer } = await boxOn()
+    await box.type('kyouhaii')
+    await typedWhileConverting(box, 'ka')
+
+    const sent = await composer.commitForSubmit(box.text)
+
+    expect(sent).toBe('今日は良いか')
+  })
+
+  test('with the focus on the first segment, typing commits the conversion and starts the next run after all of it', async () => {
+    const { box } = await boxOn('', new FakeEngine(ANSWERS))
+    await box.type('kyouhaii')
+    await box.type(' ')
+
+    await box.type('k')
+
+    expect(box.shown()).toEqual({ text: '今日は良いk', cursor: 6, decorations: [{ start: 5, end: 6, underline: true }] })
   })
 
   test('typing commits the conversion and starts the next run after it', async () => {

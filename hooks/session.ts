@@ -80,6 +80,13 @@ export class Session {
     this.conversion = { yomi, resizes: [], segments, choices: segments.map(() => 0), current: 0 }
   }
 
+  /** Picks the focused segment's candidate at `index`. */
+  select(index: number): void {
+    const c = this.conversion
+    if (c === undefined) return
+    this.conversion = { ...c, choices: c.choices.map((choice, i) => (i === c.current ? index : choice)) }
+  }
+
   nextCandidate(): void {
     this.moveCandidate(1)
   }

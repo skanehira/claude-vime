@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { candidatePage } from './band'
+import { candidateByNumber, candidatePage } from './band'
 
 const TWELVE = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二']
 
@@ -35,5 +35,18 @@ describe('candidatePage', () => {
       ],
       position: '(11/12)',
     })
+  })
+})
+
+describe('candidateByNumber', () => {
+  test('answers the candidate a number names on the page holding the chosen one, or nothing past the list', () => {
+    const picks = [
+      candidateByNumber(TWELVE.length, 2, 1),
+      candidateByNumber(TWELVE.length, 2, 9),
+      candidateByNumber(TWELVE.length, 10, 3),
+      candidateByNumber(TWELVE.length, 10, 4),
+    ]
+
+    expect(picks).toEqual([0, 8, 11, undefined])
   })
 })

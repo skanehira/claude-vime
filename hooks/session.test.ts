@@ -133,7 +133,19 @@ describe('Session while converting', () => {
     ])
   })
 
-  test('the next and previous segment move the focus and stop at both ends', async () => {
+  test('select picks a candidate of the focused segment by its index', async () => {
+    const { session } = await typed('kyouhaii')
+    await session.startConversion()
+
+    session.select(2)
+
+    expect({ preedit: session.preedit(), candidates: session.candidates() }).toEqual({
+      preedit: { kind: 'converting', segments: ['京は', '良い'], current: 0 },
+      candidates: { list: ['今日は', 'きょうは', '京は'], index: 2 },
+    })
+  })
+
+    test('the next and previous segment move the focus and stop at both ends', async () => {
     const { session } = await typed('kyouhaii')
     await session.startConversion()
 

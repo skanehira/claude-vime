@@ -16,3 +16,9 @@ export function candidatePage(list: readonly string[], index: number): Candidate
   }))
   return { items, position: `(${index + 1}/${list.length})` }
 }
+
+/** The index of the candidate the band numbers `number` (1 to 9), on the page holding `index`. */
+export function candidateByNumber(count: number, index: number, number: number): number | undefined {
+  const at = Math.floor(index / PAGE_SIZE) * PAGE_SIZE + number - 1
+  return at < count ? at : undefined
+}

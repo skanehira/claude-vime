@@ -44,7 +44,10 @@ export const register: Register = on => {
     run = (argv, init) => $.process.run(argv, init)
     const answer = await composer.edit(e)
     await showState($, composer)
-    if (answer.kind === 'pass') return next(answer.edit === undefined ? e : { ...e, text: answer.edit.text })
+    if (answer.kind === 'pass') {
+      const edit = answer.edit
+      return next(edit === undefined ? e : { ...e, text: edit.text, start: edit.start, end: edit.end, cursor: edit.cursor })
+    }
     if (answer.error !== undefined) $.ui.toast(answer.error)
     return answer.box
   })
