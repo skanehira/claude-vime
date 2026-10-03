@@ -38,6 +38,8 @@ const ANSWERS = {
     { candidates: ['は', '葉'] },
     { candidates: ['良い', 'いい'] },
   ],
+  [keyOf('をつかって', [])]: [{ candidates: ['を使って', 'をつかって'] }],
+  [keyOf('かん', [])]: [{ candidates: ['缶', '感'] }],
 }
 
 // The prompt box as the editor holds it: each edit goes through the composer,
@@ -666,3 +668,110 @@ describe('Composer converting', () => {
     })
   })
 })
+
+describe('Composer ASCII mode (;)', () => {
+  test(';React;wotsukatte, Space and ctrl+k give Reactを使って, as in vime.nvim', async () => {
+    const { box } = await boxOn()
+    await box.type(';React;wotsukatte')
+    const typed = box.shown()
+
+    await box.type(' ')
+    const converted = box.shown()
+    await box.killToEnd()
+
+    expect({ typed, converted, committed: box.shown(), status: box.composer.status() }).toEqual({
+      typed: { text: 'Reactをつかって', cursor: 10, decorations: [{ start: 0, end: 10, underline: true }] },
+      converted: {
+        text: 'Reactを使って',
+        cursor: 9,
+        decorations: [
+          { start: 0, end: 5, underline: true },
+          { start: 5, end: 9, underline: true, bold: true },
+        ],
+      },
+      committed: { text: 'Reactを使って', cursor: 9, decorations: [] },
+      status: 'あ',
+    })
+  })
+
+  test('in ASCII mode uppercase, symbols and spaces go in as typed, and the status line shows A', async () => {
+    const { box } = await boxOn()
+
+    await box.type(';A b-1')
+
+    expect({ shown: box.shown(), status: box.composer.status() }).toEqual({
+      shown: { text: 'A b-1', cursor: 5, decorations: [{ start: 0, end: 5, underline: true }] },
+      status: 'A',
+    })
+  })
+
+  test('a burst of keys in ASCII mode goes in as typed', async () => {
+    const { box } = await boxOn()
+    await box.type(';')
+
+    await box.insert('React!')
+
+    expect(box.shown()).toEqual({ text: 'React!', cursor: 6, decorations: [{ start: 0, end: 6, underline: true }] })
+  })
+
+  test('Space after a closed latin part goes in as a space, as vime.nvim takes it', async () => {
+    const { box, engine } = await boxOn()
+    await box.type(';Re;')
+
+    await box.type(' ')
+
+    expect({ text: box.text, calls: engine.calls }).toEqual({ text: 'Re ', calls: [] })
+  })
+
+  test('ctrl+k steps from one kana part to the next, then commits the run', async () => {
+    const { box } = await boxOn()
+    await box.type('kyouhaii;X;kan')
+    await box.type(' ')
+
+    await box.killToEnd()
+    const second = box.shown()
+    await box.killToEnd()
+
+    expect({ second, committed: box.shown() }).toEqual({
+      second: {
+        text: '今日は良いX缶',
+        cursor: 7,
+        decorations: [
+          { start: 0, end: 6, underline: true },
+          { start: 6, end: 7, underline: true, bold: true },
+        ],
+      },
+      committed: { text: '今日は良いX缶', cursor: 7, decorations: [] },
+    })
+  })
+
+  test('with ASCII mode open and nothing typed in it, Backspace deletes as usual and ASCII mode goes on', async () => {
+    const { box } = await boxOn('ab')
+    await box.type(';')
+
+    await box.press(BACKSPACE)
+    const afterBackspace = { text: box.text, status: box.composer.status() }
+    await box.type('X')
+
+    expect({ afterBackspace, shown: box.shown() }).toEqual({
+      afterBackspace: { text: 'a', status: 'A' },
+      shown: { text: 'aX', cursor: 2, decorations: [{ start: 1, end: 2, underline: true }] },
+    })
+  })
+
+  test('sending the prompt leaves ASCII mode', async () => {
+    const { box, composer } = await boxOn()
+    await box.type(';')
+
+    await composer.commitForSubmit(box.text)
+
+    expect(composer.status()).toBe('あ')
+  })
+
+  test('the status line is empty while Japanese input is off', async () => {
+    const composer = new Composer(new FakeEngine(ANSWERS))
+
+    expect(composer.status()).toBe(undefined)
+  })
+})
+

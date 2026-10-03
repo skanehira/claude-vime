@@ -23,8 +23,10 @@ export type BoxAnswer = { text: string; cursor: number; decorations: Decoration[
 export type Answer = { kind: 'box'; box: BoxAnswer; error?: string } | { kind: 'pass'; edit?: Edit }
 
 // A run starts on a lowercase letter or Japanese punctuation, and goes on with digits and ' too.
-const STARTS_RUN = /^[a-z,.\-/[\]]$/
-const CONTINUES_RUN = /^[a-z0-9,.\-/[\]']$/
+// ; opens and closes ASCII mode (vime.nvim's ascii_toggle), in which any printable character goes in as typed.
+const STARTS_RUN = /^[a-z,.\-/[\];]$/
+const CONTINUES_RUN = /^[a-z0-9,.\-/[\]';]$/
+const PRINTABLE = /^[\x20-\x7e]$/
 
 // Key shapes as a terminal delivers them to prompt.edit (observed on Claude Code 2.1.288):
 // ctrl+j, once unbound from chat:newline, puts in a newline and arrives as `enter` (through
@@ -69,6 +71,12 @@ export class Composer {
 
   get isOn(): boolean {
     return this.on
+  }
+
+  /** What the status line shows: A in ASCII mode, あ otherwise while on, nothing while off. */
+  status(): string | undefined {
+    if (!this.on) return undefined
+    return this.session.isAscii() ? 'A' : 'あ'
   }
 
   /** The focused segment's candidates while converting. */
@@ -117,7 +125,11 @@ export class Composer {
     const found = this.findRaw(sent)
     const text = found === undefined ? sent : (await this.replay(found)).text
     // A prompt that no longer holds the run goes as it is; the next edit starts over.
-    if (this.shown === '' || text.slice(this.anchor, this.anchor + this.shown.length) !== this.shown) return text
+    if (this.shown === '' || text.slice(this.anchor, this.anchor + this.shown.length) !== this.shown) {
+      // Nothing of the run is in what is sent (or ASCII mode was open with nothing in it): start over.
+      this.forget()
+      return text
+    }
     return (await this.commitInto(text)).text
   }
 
@@ -164,12 +176,13 @@ export class Composer {
     }
     if (!this.on) return { kind: 'pass' }
     // A burst of keys or a paste comes with no key; a key that puts in text of its own (ctrl+y) is not one.
-    if (e.key === undefined && e.start === e.end && e.inputText.length > 1 && [...e.inputText].every(c => CONTINUES_RUN.test(c))) {
+    const takes = this.session.isAscii() ? PRINTABLE : CONTINUES_RUN
+    if (e.key === undefined && e.start === e.end && e.inputText.length > 1 && [...e.inputText].every(c => takes.test(c))) {
       return this.burst(e)
     }
 
     const ch = e.start === e.end ? e.inputText : ''
-    if (this.shown === '') {
+    if (this.session.isEmpty()) {
       if (!STARTS_RUN.test(ch) || isSlashCommandName(e.text.slice(0, e.start) + ch)) return { kind: 'pass' }
       this.anchor = e.start
       await this.session.input(ch)
@@ -182,9 +195,19 @@ export class Composer {
     const candidates = this.session.candidates()
 
     if (isCtrl(e.key, 'k')) {
-      // Commits without sending (Japanese input stays on), and kills none of the text after it.
-      const { text, end: cursor } = await this.commitInto(e.text)
-      return { kind: 'box', box: { text, cursor, decorations: [] } }
+      // vime.nvim's Enter, without sending: commits the converted part and goes on to the next
+      // kana part, or commits the run; Japanese input stays on, and nothing after it is killed.
+      const committed = await this.session.commitStep()
+      if (committed === undefined) return this.render(e.text)
+      const text = e.text.slice(0, this.anchor) + committed + e.text.slice(end)
+      this.shown = ''
+      return { kind: 'box', box: { text, cursor: this.anchor + committed.length, decorations: [] } }
+    }
+    if (this.shown === '' && !(isAtEnd && PRINTABLE.test(ch))) {
+      // ASCII mode open with nothing typed in it yet: other keys act as usual, and the
+      // mode goes on from wherever the cursor lands.
+      this.anchor = applied({ kind: 'pass' }, e).cursor
+      return { kind: 'pass' }
     }
 
     if (candidates !== undefined) {
@@ -211,10 +234,12 @@ export class Composer {
       return this.render(e.text)
     }
     if (isAtEnd && ch === ' ') {
-      await this.session.startConversion()
+      // After a latin part (ASCII mode, or just closed) Space is a space, as vime.nvim takes it.
+      if (this.session.isLatinTail()) await this.session.input(ch)
+      else await this.session.startConversion()
       return this.render(e.text)
     }
-    if (isAtEnd && CONTINUES_RUN.test(ch)) {
+    if (isAtEnd && (this.session.isAscii() ? PRINTABLE : CONTINUES_RUN).test(ch)) {
       await this.session.input(ch)
       return this.render(e.text)
     }

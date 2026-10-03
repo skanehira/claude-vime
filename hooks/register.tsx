@@ -32,7 +32,7 @@ async function agentOf($: EngineInterface): Promise<string | undefined> {
 }
 
 async function showState($: EngineInterface, current: Composer) {
-  $.ui.status(current.isOn ? 'あ' : undefined)
+  $.ui.status(current.status())
   const next = current.candidates() ?? null
   await update($, candidates, () => next)
 }
