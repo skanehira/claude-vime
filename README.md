@@ -78,9 +78,12 @@ While Japanese input is on, the status line shows `あ`.
 | `1`–`9`                               | types the digit                 | adds the digit to the kana (`3ji` → `3じ`) | picks the candidate the band numbers so                  |
 | left / right, ctrl+b / ctrl+f         | moves the cursor                | commits the kana, then moves the cursor   | focuses the previous / next segment                      |
 | ctrl+a / ctrl+e (or option+left / right) | (as without the mod)         | commits the kana, then acts as usual      | shortens / lengthens the focused segment                 |
+| ctrl+k                                | deletes to the end of the line | commits the kana                          | commits the conversion                                   |
 | Backspace                             | deletes a character             | deletes the last kana (きょ counts as one) | goes back to the kana                                    |
 | Enter                                 | sends the prompt                | sends it with the kana committed          | sends it with the conversion committed                   |
 | any other key                         | (as without the mod)            | commits the kana, then acts as usual      | commits the conversion, then goes in after it            |
+
+ctrl+k commits without sending the prompt and leaves Japanese input on; while composing or converting it deletes nothing.
 
 ctrl+left and ctrl+right shorten and lengthen a segment too, where the terminal passes them on (macOS takes them for switching spaces by default).
 
