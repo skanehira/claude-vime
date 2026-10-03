@@ -373,7 +373,7 @@ describe('Composer converting', () => {
     expect({ shown: box.shown(), candidates: composer.candidates() }).toEqual({
       shown: {
         text: '> 今日は良い',
-        cursor: 5,
+        cursor: 4,
         decorations: [
           { start: 2, end: 5, underline: true, bold: true },
           { start: 5, end: 7, underline: true },
@@ -381,6 +381,17 @@ describe('Composer converting', () => {
       },
       candidates: { list: ['今日は', 'きょうは'], index: 0 },
     })
+  })
+
+  test('while converting, the cursor sits on the focused segment’s last character, so the terminal’s cursor marks it', async () => {
+    const { box } = await boxOn('> ')
+    await box.type('kyouhaii')
+    await box.type(' ')
+    const onFirst = box.cursor
+
+    await box.press(RIGHT)
+
+    expect({ onFirst, onSecond: box.cursor, text: box.text }).toEqual({ onFirst: 4, onSecond: 6, text: '> 今日は良い' })
   })
 
   test('Space again picks the next candidate of the focused segment', async () => {
@@ -392,7 +403,7 @@ describe('Composer converting', () => {
 
     expect(box.shown()).toEqual({
       text: 'きょうは良い',
-      cursor: 4,
+      cursor: 3,
       decorations: [
         { start: 0, end: 4, underline: true, bold: true },
         { start: 4, end: 6, underline: true },
@@ -413,7 +424,7 @@ describe('Composer converting', () => {
     expect([onSecond, box.shown()]).toEqual([
       {
         text: '今日はいい',
-        cursor: 5,
+        cursor: 4,
         decorations: [
           { start: 0, end: 3, underline: true },
           { start: 3, end: 5, underline: true, bold: true },
@@ -421,7 +432,7 @@ describe('Composer converting', () => {
       },
       {
         text: '今日はいい',
-        cursor: 3,
+        cursor: 2,
         decorations: [
           { start: 0, end: 3, underline: true, bold: true },
           { start: 3, end: 5, underline: true },
@@ -460,7 +471,7 @@ describe('Composer converting', () => {
     expect({ shortened, text: box.text, converted: engine.calls.slice(1) }).toEqual({
       shortened: {
         text: '今日は良い',
-        cursor: 2,
+        cursor: 1,
         decorations: [
           { start: 0, end: 2, underline: true, bold: true },
           { start: 2, end: 3, underline: true },
@@ -501,7 +512,7 @@ describe('Composer converting', () => {
 
     expect(box.shown()).toEqual({
       text: '今日は良い',
-      cursor: 2,
+      cursor: 1,
       decorations: [
         { start: 0, end: 2, underline: true, bold: true },
         { start: 2, end: 3, underline: true },
@@ -665,6 +676,17 @@ describe('Composer converting', () => {
     expect(box.shown()).toEqual({ text: '今日は良いか', cursor: 6, decorations: [{ start: 5, end: 6, underline: true }] })
   })
 
+  test('Backspace on a one-character conversion goes back to the kana, deleting nothing before it', async () => {
+    const answers = { [keyOf('かん', [])]: [{ candidates: ['缶', '感'] }] }
+    const { box } = await boxOn('x', new FakeEngine(answers))
+    await box.type('kan')
+    await box.type(' ')
+
+    await box.press(BACKSPACE)
+
+    expect(box.shown()).toEqual({ text: 'xかn', cursor: 3, decorations: [{ start: 1, end: 3, underline: true }] })
+  })
+
   test('Backspace goes back to the kana', async () => {
     const { box } = await boxOn()
     await box.type('kyouhaii')
@@ -710,7 +732,7 @@ describe('Composer ASCII mode (;)', () => {
       typed: { text: 'Reactをつかって', cursor: 10, decorations: [{ start: 0, end: 10, underline: true }] },
       converted: {
         text: 'Reactを使って',
-        cursor: 9,
+        cursor: 8,
         decorations: [
           { start: 0, end: 5, underline: true },
           { start: 5, end: 9, underline: true, bold: true },
@@ -762,7 +784,7 @@ describe('Composer ASCII mode (;)', () => {
     expect({ second, committed: box.shown() }).toEqual({
       second: {
         text: '今日は良いX缶',
-        cursor: 7,
+        cursor: 6,
         decorations: [
           { start: 0, end: 6, underline: true },
           { start: 6, end: 7, underline: true, bold: true },

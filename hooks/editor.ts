@@ -204,11 +204,11 @@ export class Composer {
     }
 
     if (candidates !== undefined) {
-      // Converting: the cursor sits at the focused segment's end, so a key typed or a
-      // Backspace anywhere in the run counts, and left/right always have room to move.
+      // Converting: the cursor sits on the focused segment, so a key typed or a Backspace
+      // anywhere in the run counts (a Backspace at the run's first character included).
       const isInRun = e.start >= this.anchor && e.end <= end
       const number = /^[1-9]$/.test(ch) ? candidateByNumber(candidates.list.length, candidates.index, Number(ch)) : undefined
-      if (key === 'backspace' && isInRun && e.start === e.end - 1) this.session.cancel()
+      if (key === 'backspace' && e.end >= this.anchor && e.end <= end && e.start === e.end - 1) this.session.cancel()
       else if (isInRun && ch === ' ') this.session.nextCandidate()
       else if (isInRun && /^[1-9]$/.test(ch)) {
         if (number !== undefined) this.session.select(number)
@@ -257,11 +257,15 @@ export class Composer {
     return { kind: 'box', box: { text: next, cursor: this.cursor(), decorations: this.decorations() } }
   }
 
-  /** Composing: after the kana. Converting: after the focused segment. */
+  /**
+   * Composing: after the kana. Converting: on the focused segment's last character, where the
+   * terminal draws its cursor over it; that leaves text after the cursor for right / ctrl+e, and
+   * before it for left / ctrl+a unless the segment is one character at the start of the line.
+   */
   private cursor(): number {
     const p = this.session.preedit()
     if (p.kind === 'composing') return this.anchor + p.text.length
-    return this.anchor + p.before.length + p.segments.slice(0, p.current + 1).join('').length
+    return this.anchor + p.before.length + p.segments.slice(0, p.current + 1).join('').length - 1
   }
 
   private async continueAfterCommit(text: string, ch: string): Promise<Answer> {
