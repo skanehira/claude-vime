@@ -9,7 +9,7 @@ type          kyouhaiitenkidane   the box shows  きょうはいいてんきだ�
 Space                             the box shows  今日配位天気だね         (the focused segment 今日 in bold)
                                   above the box  1:今日 2:きょう 3:凶 … (1/165)
 ctrl+e                            the box shows  今日は良い天気だね       (the focused segment lengthened to 今日は)
-ctrl+j                            the box keeps  今日は良い天気だね       (committed, Japanese input off)
+shift+Space                       the box keeps  今日は良い天気だね       (committed, Japanese input off)
 ```
 
 The candidates depend on anthy's version and on what it has learned.
@@ -51,20 +51,7 @@ When a session starts, the mod picks the agent in this order and checks each wit
 
 To check that it is loaded, type `/vi`: `/vime` is offered with the description "Turn Japanese (romaji to kana and kanji) input on or off".
 
-To turn Japanese input on and off with ctrl+j, free ctrl+j from its default action (a new line) in `~/.claude/keybindings.json`:
-
-```json
-{
-  "bindings": [
-    {
-      "context": "Chat",
-      "bindings": {
-        "ctrl+j": null
-      }
-    }
-  ]
-}
-```
+Turn Japanese input on and off with shift+Space (or `/vime`). It needs no key binding: shift+Space reaches the mod as a space typed with shift, which Claude Code leaves to the editor. A terminal that does not tell shift+Space from Space sends it as a plain space; use `/vime` there.
 
 ## Keys
 
@@ -72,7 +59,7 @@ While Japanese input is on, the status line shows `あ`, or `A` in ASCII mode.
 
 | Key                                   | While nothing is being composed | While composing kana                      | While converting                                         |
 | ------------------------------------- | ------------------------------- | ----------------------------------------- | -------------------------------------------------------- |
-| ctrl+j or `/vime`                     | turns Japanese input on or off  | commits the kana, then turns it off       | commits the conversion, then turns it off                |
+| shift+Space or `/vime`                | turns Japanese input on or off  | commits the kana, then turns it off       | commits the conversion, then turns it off                |
 | `a`–`z` `,` `.` `-` `/` `[` `]`       | starts composing kana           | adds to the kana                          | commits the conversion and starts new kana after it      |
 | Space                                 | types a space                   | converts the kana                         | picks the next candidate of the focused segment          |
 | `1`–`9`                               | types the digit                 | adds the digit to the kana (`3ji` → `3じ`) | picks the candidate the band numbers so                  |
@@ -86,6 +73,8 @@ While Japanese input is on, the status line shows `あ`, or `A` in ASCII mode.
 | any other key                         | (as without the mod)            | commits the kana, then acts as usual      | commits the conversion, then goes in after it            |
 
 ctrl+k commits without sending the prompt and leaves Japanese input on; while composing or converting it deletes nothing.
+
+shift+Space turns input off even while typing English text, so let go of shift before a space after an uppercase letter.
 
 ctrl+left and ctrl+right shorten and lengthen a segment too, where the terminal passes them on (macOS takes them for switching spaces by default).
 
@@ -172,8 +161,6 @@ When a conversion fails, the mod shows the reason as a toast and leaves the kana
 claude plugin uninstall vime@claude-vime
 claude plugin marketplace remove claude-vime
 ```
-
-Remove `"ctrl+j": null` from `~/.claude/keybindings.json` if you added it.
 
 ## Development
 
