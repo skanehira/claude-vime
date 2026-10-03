@@ -8,7 +8,7 @@ A [Claude Code](https://claude.com/claude-code) mod for typing Japanese in the p
 type          kyouhaiitenkidane   the box shows  きょうはいいてんきだね   (underlined)
 Space                             the box shows  今日配位天気だね         (the focused segment 今日 in bold)
                                   above the box  1:今日 2:きょう 3:凶 … (1/165)
-option+right                      the box shows  今日は良い天気だね       (the focused segment lengthened to 今日は)
+ctrl+e                            the box shows  今日は良い天気だね       (the focused segment lengthened to 今日は)
 ctrl+j                            the box keeps  今日は良い天気だね       (committed, Japanese input off)
 ```
 
@@ -77,7 +77,7 @@ While Japanese input is on, the status line shows `あ`.
 | Space                                 | types a space                   | converts the kana                         | picks the next candidate of the focused segment          |
 | `1`–`9`                               | types the digit                 | adds the digit to the kana (`3ji` → `3じ`) | picks the candidate the band numbers so                  |
 | left / right, ctrl+b / ctrl+f         | moves the cursor                | commits the kana, then moves the cursor   | focuses the previous / next segment                      |
-| option+left / option+right            | (as without the mod)            | commits the kana, then acts as usual      | shortens / lengthens the focused segment                 |
+| ctrl+a / ctrl+e (or option+left / right) | (as without the mod)         | commits the kana, then acts as usual      | shortens / lengthens the focused segment                 |
 | Backspace                             | deletes a character             | deletes the last kana (きょ counts as one) | goes back to the kana                                    |
 | Enter                                 | sends the prompt                | sends it with the kana committed          | sends it with the conversion committed                   |
 | any other key                         | (as without the mod)            | commits the kana, then acts as usual      | commits the conversion, then goes in after it            |
@@ -96,7 +96,7 @@ Several characters arriving as one edit (a paste, or keys Claude Code folds toge
 
 ### Each conversion starts the agent
 
-Space while composing and option+left / option+right each run the agent once and wait for it: about 10 ms on the machine the mod was tested on. Committing a conversion runs it once more to have anthy learn your choices, after the key has been answered, so typing never waits on it. Typing kana runs nothing.
+Space while composing and ctrl+a / ctrl+e (or option+left / option+right) each run the agent once and wait for it: about 10 ms on the machine the mod was tested on. Committing a conversion runs it once more to have anthy learn your choices, after the key has been answered, so typing never waits on it. Typing kana runs nothing.
 
 A key typed while a conversion runs can reach the box afterwards, raw: `今日は良いka`. The next key you type takes it back out and treats it as typed, so the box becomes `今日は良いかい` on `i`. Sending the prompt right away does the same.
 
