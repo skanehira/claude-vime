@@ -32,6 +32,22 @@ export async function findAgent(
   return undefined
 }
 
+type Commit = ConversionEngine['commit']
+
+/**
+ * A commit that answers at once and has the agent learn in the background, one
+ * commit after another: learning changes nothing on screen, and a key typed
+ * while a hook waits is one the engine handles on its own.
+ */
+export function learnLater(commit: Commit, report: (message: string) => void): Commit {
+  let queue = Promise.resolve()
+  return async (yomi, resizes, choices) => {
+    queue = queue
+      .then(() => commit(yomi, resizes, choices))
+      .catch((error: unknown) => report(error instanceof Error ? error.message : String(error)))
+  }
+}
+
 export function anthyEngine(run: Run, agent: string | undefined): ConversionEngine {
   // --utf8 is anthy 9100h's switch away from EUC-JP; anthy-unicode speaks UTF-8 and ignores it.
   const session = async (yomi: string, commands: readonly string[]): Promise<string[]> => {

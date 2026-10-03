@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { anthyEngine, findAgent } from './anthy'
+import { anthyEngine, findAgent, learnLater } from './anthy'
 import type { Run, RunResult } from './anthy'
 
 const AGENT = '/nix/profile/bin/anthy-agent'
@@ -219,5 +219,51 @@ describe('findAgent', () => {
       found: ['/opt/anthy/bin/anthy-agent', undefined],
       asked: [['/nowhere/anthy-agent', '--version']],
     })
+  })
+})
+
+describe('learnLater', () => {
+  // Lets the chained promises of the background queue run.
+  const settled = async () => {
+    for (let i = 0; i < 20; i++) await Promise.resolve()
+  }
+
+  test('answers at once, then learns each commit in turn, after the one before it finished', async () => {
+    const order: string[] = []
+    let release = () => {}
+    const first = new Promise<void>(resolve => {
+      release = resolve
+    })
+    const commit = learnLater(async (yomi: string) => {
+      order.push(`start ${yomi}`)
+      if (yomi === 'きょう') await first
+      order.push(`end ${yomi}`)
+    }, () => {})
+
+    await commit('きょう', [], [0])
+    await commit('いい', [], [1])
+    const beforeRelease = [...order]
+    release()
+    await settled()
+
+    expect({ beforeRelease, after: order }).toEqual({
+      beforeRelease: ['start きょう'],
+      after: ['start きょう', 'end きょう', 'start いい', 'end いい'],
+    })
+  })
+
+  test('a commit that fails is reported, and the ones after it still run', async () => {
+    const reported: string[] = []
+    const learned: string[] = []
+    const commit = learnLater(async (yomi: string) => {
+      if (yomi === 'だめ') throw new Error('vime: anthy-agent exited with 1')
+      learned.push(yomi)
+    }, message => reported.push(message))
+
+    await commit('だめ', [], [0])
+    await commit('いい', [], [1])
+    await settled()
+
+    expect({ reported, learned }).toEqual({ reported: ['vime: anthy-agent exited with 1'], learned: ['いい'] })
   })
 })

@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import { anthyEngine, findAgent } from './anthy'
+import { anthyEngine, findAgent, learnLater } from './anthy'
 import type { Run } from './anthy'
 import { candidatePage } from './band'
 import { Composer } from './editor'
@@ -39,7 +39,11 @@ async function showState($: EngineInterface, current: Composer) {
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    composer = new Composer(anthyEngine(runAgent, await agentOf($)))
+    const agent = await agentOf($)
+    // Learning runs after the edit that committed has been answered, on the session's own $.
+    const learning = anthyEngine((argv, init) => $.process.run(argv, init), agent)
+    const commit = learnLater(learning.commit, message => $.ui.toast(message))
+    composer = new Composer({ convert: anthyEngine(runAgent, agent).convert, commit })
     // A reload starts a fresh composer (off): clear what the last one left on screen.
     await showState($, composer)
     await $.command.register({ name: 'vime', description: 'Turn Japanese (romaji to kana and kanji) input on or off', immediate: true })
