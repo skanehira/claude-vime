@@ -1,20 +1,8 @@
 # claude-vime
 
+[Claude Code](https://claude.com/claude-code) のプロンプト欄で、[vime.nvim](https://github.com/skanehira/vime.nvim) と同じ方法でローマ字入力で日本語を入力する mod です。 
 
- <img width="516" height="184" alt="画面収録 2026-10-03 18 25 43" src="https://github.com/user-attachments/assets/101de51c-e1b3-43d6-b310-7efbd0b5fa86" />
-
-
-[Claude Code](https://claude.com/claude-code) のプロンプト欄で、[vime.nvim](https://github.com/skanehira/vime.nvim) と同じ方法で日本語を入力する mod です。ローマ字を打つとかなが表示され、Space で漢字に変換します。OS の IME を切り替える必要はありません。
-
-```text
-入力          kyouhaiitenkidane   欄の表示  きょうはいいてんきだね   (下線付き)
-Space                             欄の表示  今日配位天気だね         (注目文節「今日」は太字)
-                                  欄の上    1:今日 2:きょう 3:凶 … (1/165)
-ctrl+e                            欄の表示  今日は良い天気だね       (注目文節を「今日は」に伸ばした)
-ctrl+k                            欄の表示  今日は良い天気だね       (確定)
-```
-
-候補は anthy のバージョンと学習の状態によって変わります。
+<img width="516" height="184" alt="画面収録 2026-10-03 18 25 43" src="https://github.com/user-attachments/assets/101de51c-e1b3-43d6-b310-7efbd0b5fa86" />
 
 ## 必要環境
 
