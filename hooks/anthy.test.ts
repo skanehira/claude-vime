@@ -18,8 +18,8 @@ function fakeRun(result: RunResult) {
 const ok = (stdout: string): RunResult => ({ exitCode: 0, stdout, stderr: '' })
 
 const SEGMENTS = [
-  { yomi: 'きょうは', candidates: ['今日は', 'きょうは'] },
-  { yomi: 'いい', candidates: ['良い', 'いい'] },
+  { candidates: ['今日は', 'きょうは'] },
+  { candidates: ['良い', 'いい'] },
 ]
 
 const failureOf = (promise: Promise<unknown>) =>

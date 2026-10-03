@@ -30,13 +30,13 @@ class FakeEngine implements ConversionEngine {
 
 const ANSWERS = {
   [keyOf('きょうはいい', [])]: [
-    { yomi: 'きょうは', candidates: ['今日は', 'きょうは'] },
-    { yomi: 'いい', candidates: ['良い', 'いい'] },
+    { candidates: ['今日は', 'きょうは'] },
+    { candidates: ['良い', 'いい'] },
   ],
   [keyOf('きょうはいい', [[0, -1]])]: [
-    { yomi: 'きょう', candidates: ['今日', '京'] },
-    { yomi: 'は', candidates: ['は', '葉'] },
-    { yomi: 'いい', candidates: ['良い', 'いい'] },
+    { candidates: ['今日', '京'] },
+    { candidates: ['は', '葉'] },
+    { candidates: ['良い', 'いい'] },
   ],
 }
 
@@ -405,7 +405,7 @@ describe('Composer converting', () => {
   })
 
   test('a number picks that candidate of the band, Space the next one', async () => {
-    const answers = { [keyOf('かん', [])]: [{ yomi: 'かん', candidates: ['缶', '感', '管'] }] }
+    const answers = { [keyOf('かん', [])]: [{ candidates: ['缶', '感', '管'] }] }
     const { box, composer } = await boxOn('', new FakeEngine(answers))
     await box.type('kan')
     await box.type(' ')

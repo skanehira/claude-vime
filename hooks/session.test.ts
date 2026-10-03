@@ -26,20 +26,20 @@ class FakeEngine implements ConversionEngine {
 const keyOf = (yomi: string, resizes: readonly Resize[]) => JSON.stringify([yomi, resizes])
 
 const KYOUHAII: readonly Segment[] = [
-  { yomi: 'きょうは', candidates: ['今日は', 'きょうは', '京は'] },
-  { yomi: 'いい', candidates: ['良い', 'いい'] },
+  { candidates: ['今日は', 'きょうは', '京は'] },
+  { candidates: ['良い', 'いい'] },
 ]
 const KYOU_HA_II: readonly Segment[] = [
-  { yomi: 'きょう', candidates: ['今日', '京'] },
-  { yomi: 'は', candidates: ['は', '葉'] },
-  { yomi: 'いい', candidates: ['良い', 'いい'] },
+  { candidates: ['今日', '京'] },
+  { candidates: ['は', '葉'] },
+  { candidates: ['良い', 'いい'] },
 ]
 
 const ANSWERS = {
   [keyOf('きょうはいい', [])]: KYOUHAII,
   [keyOf('きょうはいい', [[0, -1]])]: KYOU_HA_II,
   [keyOf('きょうはいい', [[0, -1], [0, 1]])]: KYOUHAII,
-  [keyOf('かん', [])]: [{ yomi: 'かん', candidates: ['缶', '感'] }],
+  [keyOf('かん', [])]: [{ candidates: ['缶', '感'] }],
 }
 
 async function typed(romaji: string, engine = new FakeEngine(ANSWERS)) {

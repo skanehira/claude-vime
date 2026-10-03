@@ -3,8 +3,8 @@
 // the parts of vime.nvim lua/vime/session.lua a single kana run needs.
 import { toKana } from './romaji'
 
-/** One segment of a conversion: its reading and the candidates, best first. */
-export type Segment = { yomi: string; candidates: readonly string[] }
+/** One segment of a conversion: its candidates, best first. */
+export type Segment = { candidates: readonly string[] }
 
 /** A resize of the segment at `[0]` (0-based) by `[1]` characters: +1 longer, -1 shorter. */
 export type Resize = readonly [number, number]
