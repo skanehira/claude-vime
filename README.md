@@ -1,7 +1,7 @@
 # claude-vime
 
 
-https://github.com/user-attachments/assets/9a149ab2-173f-456b-8a22-55f22729942b
+ <img width="516" height="184" alt="画面収録 2026-10-03 18 25 43" src="https://github.com/user-attachments/assets/101de51c-e1b3-43d6-b310-7efbd0b5fa86" />
 
 
 [Claude Code](https://claude.com/claude-code) のプロンプト欄で、[vime.nvim](https://github.com/skanehira/vime.nvim) と同じ方法で日本語を入力する mod です。ローマ字を打つとかなが表示され、Space で漢字に変換します。OS の IME を切り替える必要はありません。
