@@ -60,7 +60,7 @@ While Japanese input is on, the status line shows `あ`, or `A` in ASCII mode.
 | Key                                   | While nothing is being composed | While composing kana                      | While converting                                         |
 | ------------------------------------- | ------------------------------- | ----------------------------------------- | -------------------------------------------------------- |
 | `a`–`z` `,` `.` `-` `/` `[` `]`       | starts composing kana           | adds to the kana                          | commits the conversion and starts new kana after it      |
-| Space                                 | types a space                   | converts the kana                         | picks the next candidate of the focused segment          |
+| Space                                 | types a space                   | converts the kana                         | picks the next candidate of the focused segment; shift+Space the previous one |
 | `1`–`9`                               | types the digit                 | adds the digit to the kana (`3ji` → `3じ`) | picks the candidate the band numbers so                  |
 | left / right, ctrl+b / ctrl+f         | moves the cursor                | commits the kana, then moves the cursor   | focuses the previous / next segment                      |
 | ctrl+a / ctrl+e (or option+left / right) | (as without the mod)         | commits the kana, then acts as usual      | shortens / lengthens the focused segment                 |
@@ -72,6 +72,25 @@ While Japanese input is on, the status line shows `あ`, or `A` in ASCII mode.
 | any other key                         | (as without the mod)            | commits the kana, then acts as usual      | commits the conversion, then goes in after it            |
 
 ctrl+k commits without sending the prompt and leaves Japanese input on; while composing or converting it deletes nothing.
+
+shift+Space picks the previous candidate only where the terminal tells shift+Space from Space; elsewhere it arrives as Space and picks the next one. WezTerm sends it as a plain Space by default. This entry in `config.keys` makes it send shift+Space as `ESC [ 32 ; 2 u` while Claude Code is in front, and a plain space otherwise:
+
+```lua
+{
+  key = "Space",
+  mods = "SHIFT",
+  action = wezterm.action_callback(function(window, pane)
+    local name = pane:get_foreground_process_name() or ""
+    if name:find("claude", 1, true) then
+      window:perform_action(wezterm.action.SendString("\x1b[32;2u"), pane)
+    else
+      window:perform_action(wezterm.action.SendString(" "), pane)
+    end
+  end),
+},
+```
+
+Inside tmux or another multiplexer, the process in front is the multiplexer, so the entry sends a plain space there.
 
 ctrl+left and ctrl+right shorten and lengthen a segment too, where the terminal passes them on (macOS takes them for switching spaces by default).
 
@@ -139,7 +158,7 @@ While converting, the band above the prompt lists the focused segment's candidat
 ### What is not there
 
 - **Esc does not commit.** Outside vim mode Esc cancels in Claude Code; in vim mode it switches to normal mode. Neither reaches a mod.
-- **There is no key for the previous candidate.** ctrl+p recalls history, and up, down, ctrl+n, Tab and shift+arrows never reach a mod. Pick a candidate by its number instead.
+- **The previous candidate needs shift+Space as the terminal reports it.** ctrl+p recalls history, and up, down, ctrl+n, Tab and shift+arrows never reach a mod; where shift+Space arrives as Space, pick a candidate by its number.
 - **No katakana or alphabet commit (vime.nvim's F7 / F10), no dictionary registration, no SKK dictionary import, no completion.**
 
 ## Troubleshooting
