@@ -12,24 +12,20 @@ option+right                      the box shows  今日は良い天気だね    
 ctrl+j                            the box keeps  今日は良い天気だね       (committed, Japanese input off)
 ```
 
+The candidates depend on anthy's version and on what it has learned.
+
 ## Requirements
 
 - **Claude Code 2.1.288.** This is the version the mod was tested with. Mods are early access, and their API can change between releases.
-- **Neovim 0.10 or later, on `PATH` as `nvim`.** Kana-to-kanji conversion runs in `nvim --headless -l bridge/bridge.lua`, which calls libanthy through LuaJIT FFI.
-- **libanthy, preferably [anthy-unicode](https://github.com/fujiwarat/anthy-unicode).** It is ABI compatible with the original anthy 9100h.
+- **anthy's command-line agent:** `anthy-agent-unicode` from [anthy-unicode](https://github.com/fujiwarat/anthy-unicode), or `anthy-agent` from the original anthy 9100h. The mod runs it in egg mode for each conversion.
 - **Hooks allowed.** A mod runs as plugin hooks, so it stays off where your settings or your organization's policy turn hooks off.
 
-How to install libanthy (from the vime.nvim README):
+The mod was tested with `anthy-agent` from nixpkgs' `anthy` (9100h) and with `anthy-agent-unicode` from an anthy-unicode source build, both on macOS. A distribution's anthy package is expected to ship one of them, but none other was checked.
 
-| Environment     | Install                                                            |
-| --------------- | ------------------------------------------------------------------ |
-| Fedora          | `sudo dnf install anthy-unicode`                                   |
-| Debian / Ubuntu | `sudo apt install libanthy-dev`                                    |
-| Arch (AUR)      | `anthy-unicode`                                                    |
-| Nix             | `nix profile install nixpkgs#anthy`                                |
-| macOS           | build from source as below, or `nix profile install nixpkgs#anthy` |
-
-Building anthy-unicode from source on macOS (installed under `~/.local`, where the mod finds it):
+| Where             | How                                                                                     |
+| ----------------- | --------------------------------------------------------------------------------------- |
+| Nix               | `nix profile install nixpkgs#anthy`, or `pkgs.anthy` in your configuration (anthy-agent) |
+| Source (macOS too) | build anthy-unicode as below (anthy-agent-unicode)                                      |
 
 ```sh
 git clone https://github.com/fujiwarat/anthy-unicode && cd anthy-unicode
@@ -37,18 +33,13 @@ meson setup build --prefix=$HOME/.local --sysconfdir=$HOME/.local/etc -Demacs=di
 meson compile -C build && meson install -C build
 ```
 
-`--sysconfdir` must be an absolute path; with a relative one, `anthy_init` fails.
+`--sysconfdir` must be an absolute path; with a relative one, anthy fails to start. Put `~/.local/bin` on the `PATH` Claude Code starts with.
 
-The bridge looks for the library in this order and uses the first file that exists. In each directory, `libanthy-unicode` comes before `libanthy` (`.dylib` on macOS, `.so` elsewhere).
+When a session starts, the mod picks the agent in this order and checks each with `--version`:
 
-1. `$VIME_ANTHY_LIB`
-2. `~/.local/lib`
-3. `~/.nix-profile/lib`
-4. `/run/current-system/sw/lib`
-5. `/opt/homebrew/lib`
-6. `/usr/local/lib`
-7. `/usr/lib`, `/usr/lib64`, `/usr/lib/x86_64-linux-gnu`, `/usr/lib/aarch64-linux-gnu`
-8. `/nix/store/*-anthy*/lib`
+1. `$VIME_ANTHY_AGENT` alone, when it is set (a command name or a path)
+2. `anthy-agent-unicode` on `PATH`
+3. `anthy-agent` on `PATH`
 
 ## Install
 
@@ -103,15 +94,22 @@ Several characters arriving as one edit (a paste, or keys Claude Code folds toge
 
 ## Behaviour to know
 
-### Each conversion starts a process
+### Each conversion starts the agent
 
-Space while composing, option+left and option+right, and committing a conversion each start `nvim --headless -l bridge/bridge.lua` once. In an interactive session on the machine the mod was tested on, one round trip took about 100 ms. Typing kana starts no process.
+Space while composing and option+left / option+right each run the agent once and wait for it: about 10 ms on the machine the mod was tested on. Committing a conversion runs it once more to have anthy learn your choices, after the key has been answered, so typing never waits on it. Typing kana runs nothing.
 
-Keys you type while a conversion runs reach the box afterwards, raw: `今日は良いka`. The next key you type takes them back out and treats them as typed, so the box becomes `今日は良いかい` on `i`. Sending the prompt right away does the same.
+A key typed while a conversion runs can reach the box afterwards, raw: `今日は良いka`. The next key you type takes it back out and treats it as typed, so the box becomes `今日は良いかい` on `i`. Sending the prompt right away does the same.
+
+A reading over 500 bytes (about 166 kana) is too long for one agent command line, and converting it shows an error instead.
 
 ### Learning
 
-anthy keeps records of the conversions and of the candidates you commit, and ranks candidates by them: `$XDG_CONFIG_HOME/anthy`, or `~/.config/anthy` when `XDG_CONFIG_HOME` is unset (anthy-unicode). The mod keeps nothing of its own.
+anthy keeps records of the conversions and of the candidates you commit, and ranks candidates by them. The mod keeps nothing of its own.
+
+| Agent                 | Where anthy keeps its records                                              |
+| --------------------- | -------------------------------------------------------------------------- |
+| `anthy-agent-unicode` | `$XDG_CONFIG_HOME/anthy`, or `~/.config/anthy` when `XDG_CONFIG_HOME` is unset |
+| `anthy-agent` (9100h) | `~/.anthy` in your account's home directory, whatever `HOME` says          |
 
 ### Vim mode
 
@@ -127,16 +125,16 @@ While converting, the band above the prompt lists the focused segment's candidat
 - **There is no key for the previous candidate.** ctrl+p recalls history, and up, down, ctrl+n, Tab and shift+arrows never reach a mod. Pick a candidate by its number instead.
 - **Uppercase letters do not start English text.** They commit the kana and go in as typed; type English with Japanese input off.
 - **No katakana or alphabet commit (vime.nvim's F7 / F10), no dictionary registration, no SKK dictionary import, no completion.**
-- **The nix anthy 9100h build (`/nix/store/*-anthy-9100h`) crashes in conversion** (exit 139) on the machine the mod was tested on. Use anthy-unicode, or point `VIME_ANTHY_LIB` at it.
 
 ## Troubleshooting
 
 When a conversion fails, the mod shows the reason as a toast and leaves the kana in place:
 
-| Toast                               | What to do                                                                |
-| ----------------------------------- | ------------------------------------------------------------------------- |
-| `vime: libanthy not found`          | Install libanthy, or set `VIME_ANTHY_LIB` to its path                     |
-| `vime: the bridge exited with 1: …` | Run `scripts/test-bridge.sh` in this repository to see the bridge's error |
+| Toast                                                   | What to do                                                                                   |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `vime: anthy-agent not found: …`                        | Install an agent (see Requirements), or set `VIME_ANTHY_AGENT`, then start a new session      |
+| `vime: anthy-agent exited with 1: …`                    | Run `scripts/test-agent.sh` in this repository to see how the agent fails                    |
+| `vime: the reading is too long to convert at once (…)` | Convert it in shorter pieces: press Space every few words                                     |
 
 ## Uninstall
 
@@ -155,9 +153,9 @@ You need TypeScript 5.0 or later for `tsc`. Its settings come from `.claude-plug
 claude plugin validate .claude-plugin/plugin.json   # the plugin: its manifest and its hooks module
 claude plugin validate .                            # the marketplace manifest
 claude plugin test .                                # hooks/*.test.ts(x) on Claude Code's own mod runtime
-scripts/test-bridge.sh                              # the bridge against the real libanthy (needs nvim, jq, libanthy)
+scripts/test-agent.sh                               # what the mod relies on in each installed agent
 claude --plugin-dir .                               # try it in a session
 tsc -p .                                            # type-check
 ```
 
-`scripts/test-bridge.sh` points `XDG_CONFIG_HOME` at a temporary directory for each check, so it does not touch your anthy records. It leaves `HOME` alone: the bridge expands `~` when it looks for the library, and under another `HOME` it would pick a different one. When you try the mod in a session, start it with `XDG_CONFIG_HOME` pointing at a temporary directory for the same reason: converting alone writes anthy records.
+`scripts/test-agent.sh` keeps its learning records apart from yours: anthy-unicode writes them under a temporary `XDG_CONFIG_HOME`, and anthy 9100h under a test personality in `~/.anthy`, whose files the script removes when it ends. When you try the mod in a session, the agent writes to your own records, since converting alone writes them: start the session with `XDG_CONFIG_HOME` pointing at a temporary directory to keep anthy-unicode's records apart.

@@ -12,24 +12,20 @@ option+右                         欄の表示  今日は良い天気だね    
 ctrl+j                            欄の表示  今日は良い天気だね       (確定して日本語入力 OFF)
 ```
 
+候補は anthy のバージョンと学習の状態によって変わります。
+
 ## 必要環境
 
 - **Claude Code 2.1.288。** 動作を確認したバージョンです。mod は早期アクセスで、API はリリース間で変わることがあります。
-- **Neovim 0.10 以上 (`nvim` として `PATH` にあること)。** かな漢字変換は `nvim --headless -l bridge/bridge.lua` の中で動き、LuaJIT FFI で libanthy を呼びます。
-- **libanthy。[anthy-unicode](https://github.com/fujiwarat/anthy-unicode) を推奨します。** 原 anthy 9100h と ABI 互換です。
+- **anthy のコマンドライン agent。** [anthy-unicode](https://github.com/fujiwarat/anthy-unicode) の `anthy-agent-unicode`、または原 anthy 9100h の `anthy-agent` です。mod は変換のたびにこれを egg モードで動かします。
 - **hooks が許可されていること。** mod はプラグインの hooks として動くので、設定や組織のポリシーで hooks を止めている環境では動きません。
 
-libanthy の導入方法 (vime.nvim の README より):
+動作を確認したのは、nixpkgs の `anthy` (9100h) の `anthy-agent` と、anthy-unicode をソースビルドした `anthy-agent-unicode` です。どちらも macOS で確認しました。各ディストリビューションの anthy パッケージにもどちらかが含まれているはずですが、確認はしていません。
 
-| 環境            | 導入                                                           |
-| --------------- | -------------------------------------------------------------- |
-| Fedora          | `sudo dnf install anthy-unicode`                               |
-| Debian / Ubuntu | `sudo apt install libanthy-dev`                                |
-| Arch (AUR)      | `anthy-unicode`                                                |
-| Nix             | `nix profile install nixpkgs#anthy`                            |
-| macOS           | 下記のソースビルド、または `nix profile install nixpkgs#anthy` |
-
-macOS でのソースビルド (`~/.local` に入れれば mod が自動で見つけます):
+| 入手先                 | 方法                                                                              |
+| ---------------------- | --------------------------------------------------------------------------------- |
+| Nix                    | `nix profile install nixpkgs#anthy`、または構成に `pkgs.anthy` (anthy-agent)       |
+| ソースビルド (macOS も可) | 下記のとおり anthy-unicode をビルド (anthy-agent-unicode)                         |
 
 ```sh
 git clone https://github.com/fujiwarat/anthy-unicode && cd anthy-unicode
@@ -37,18 +33,13 @@ meson setup build --prefix=$HOME/.local --sysconfdir=$HOME/.local/etc -Demacs=di
 meson compile -C build && meson install -C build
 ```
 
-`--sysconfdir` は絶対パスで指定してください。相対パスだと `anthy_init` が失敗します。
+`--sysconfdir` は絶対パスで指定してください。相対パスだと anthy が起動に失敗します。Claude Code を起動するときの `PATH` に `~/.local/bin` を含めてください。
 
-bridge は次の順にライブラリを探し、最初に存在したファイルを使います。各ディレクトリでは `libanthy-unicode` を `libanthy` より先に探します (拡張子は macOS で `.dylib`、それ以外で `.so`)。
+mod はセッション開始時に、次の順で agent を探します。それぞれ `--version` で動くかを確かめます。
 
-1. `$VIME_ANTHY_LIB`
-2. `~/.local/lib`
-3. `~/.nix-profile/lib`
-4. `/run/current-system/sw/lib`
-5. `/opt/homebrew/lib`
-6. `/usr/local/lib`
-7. `/usr/lib`、`/usr/lib64`、`/usr/lib/x86_64-linux-gnu`、`/usr/lib/aarch64-linux-gnu`
-8. `/nix/store/*-anthy*/lib`
+1. `$VIME_ANTHY_AGENT` (設定されていればこれだけ。コマンド名でもパスでもよい)
+2. `PATH` 上の `anthy-agent-unicode`
+3. `PATH` 上の `anthy-agent`
 
 ## 導入
 
@@ -103,15 +94,22 @@ ctrl+左 / ctrl+右 でも文節を縮める / 伸ばすことができます。
 
 ## 知っておくべき挙動
 
-### 変換のたびにプロセスを起動する
+### 変換のたびに agent を起動する
 
-かな入力中の Space、option+左 / option+右、変換の確定のたびに `nvim --headless -l bridge/bridge.lua` を 1 回起動します。動作確認したマシンの対話セッションでは、1 往復およそ 100 ms でした。かなの入力ではプロセスを起動しません。
+かな入力中の Space と、option+左 / option+右 では、agent を 1 回動かして結果を待ちます。動作確認したマシンでは約 10 ms でした。変換を確定したときも、選んだ候補を anthy に学習させるために agent をもう 1 回動かします。ただしこれはキーへの応答を返した後に行うので、打鍵が待たされることはありません。かなの入力では何も起動しません。
 
-変換の処理中に打ったキーは、処理が終わってから生のまま欄に入ります (`今日は良いka`)。次のキーを打つと、それを取り出して打ったものとして処理し直します。`i` を打てば欄は `今日は良いかい` になります。すぐにプロンプトを送信した場合も同じように処理します。
+変換の処理中に打ったキーは、処理が終わってから生のまま欄に入ることがあります (`今日は良いka`)。次のキーを打つと、それを取り出して打ったものとして処理し直します。`i` を打てば欄は `今日は良いかい` になります。すぐにプロンプトを送信した場合も同じように処理します。
+
+読みが 500 バイト (かなでおよそ 166 文字) を超えると、agent のコマンド 1 行に収まりません。その場合は変換せずにエラーを出します。
 
 ### 学習
 
-anthy は、変換の記録と確定した候補の記録を残し、候補の順位に使います。記録先は `$XDG_CONFIG_HOME/anthy` で、`XDG_CONFIG_HOME` が未設定なら `~/.config/anthy` です (anthy-unicode の場合)。mod 自体は何も保存しません。
+anthy は、変換の記録と確定した候補の記録を残し、候補の順位に使います。mod 自体は何も保存しません。
+
+| agent                 | anthy の記録先                                                              |
+| --------------------- | --------------------------------------------------------------------------- |
+| `anthy-agent-unicode` | `$XDG_CONFIG_HOME/anthy` (`XDG_CONFIG_HOME` が未設定なら `~/.config/anthy`) |
+| `anthy-agent` (9100h) | アカウントのホームディレクトリの `~/.anthy` (`HOME` の値によらない)         |
 
 ### vim モード
 
@@ -127,16 +125,16 @@ anthy は、変換の記録と確定した候補の記録を残し、候補の�
 - **前の候補に戻すキーはありません。** ctrl+p は履歴の呼び出しになり、上・下・ctrl+n・Tab・shift+矢印は mod に届きません。番号で候補を選んでください。
 - **大文字で英字入力は始まりません。** 大文字はかなを確定してからそのまま入ります。英文は日本語入力を OFF にして打ってください。
 - **カタカナ確定・英字確定 (vime.nvim の F7 / F10)、辞書登録、SKK 辞書の取り込み、補完はありません。**
-- **nix の anthy 9100h (`/nix/store/*-anthy-9100h`) は変換で異常終了します** (exit 139。動作確認したマシンで発生)。anthy-unicode を使うか、`VIME_ANTHY_LIB` で anthy-unicode を指定してください。
 
 ## うまくいかないとき
 
 変換に失敗すると、理由をトーストで出し、かなはそのまま残します:
 
-| トースト                            | 対処                                                                       |
-| ----------------------------------- | -------------------------------------------------------------------------- |
-| `vime: libanthy not found`          | libanthy を導入するか、`VIME_ANTHY_LIB` にそのパスを設定する               |
-| `vime: the bridge exited with 1: …` | このリポジトリで `scripts/test-bridge.sh` を実行して bridge のエラーを見る |
+| トースト                                                | 対処                                                                              |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `vime: anthy-agent not found: …`                        | agent を導入する (必要環境を参照) か `VIME_ANTHY_AGENT` を設定し、セッションを開き直す |
+| `vime: anthy-agent exited with 1: …`                    | このリポジトリで `scripts/test-agent.sh` を実行し、agent の失敗のしかたを見る       |
+| `vime: the reading is too long to convert at once (…)` | 数語ごとに Space を押して、短く区切って変換する                                     |
 
 ## アンインストール
 
@@ -155,9 +153,9 @@ claude plugin marketplace remove claude-vime
 claude plugin validate .claude-plugin/plugin.json   # プラグイン: manifest と hooks module
 claude plugin validate .                            # marketplace の manifest
 claude plugin test .                                # hooks/*.test.ts(x) を Claude Code 自身の mod 実行環境で走らせる
-scripts/test-bridge.sh                              # 実際の libanthy で bridge を検査 (nvim・jq・libanthy が必要)
+scripts/test-agent.sh                               # 導入済みの各 agent について mod が頼る挙動を確かめる
 claude --plugin-dir .                               # セッションで試す
 tsc -p .                                            # 型チェック
 ```
 
-`scripts/test-bridge.sh` は検査ごとに `XDG_CONFIG_HOME` を一時ディレクトリへ向けるので、手元の anthy の記録には触れません。`HOME` は差し替えません。bridge はライブラリを探すときに `~` を展開するので、別の `HOME` では別のライブラリを拾ってしまうためです。セッションで試すときも、同じ理由で `XDG_CONFIG_HOME` を一時ディレクトリに向けて起動してください。変換するだけでも anthy の記録が書かれます。
+`scripts/test-agent.sh` は、学習の記録を手元の記録と分けて書きます。anthy-unicode は一時的な `XDG_CONFIG_HOME` の下に、anthy 9100h は `~/.anthy` の試験用 personality に書き、後者のファイルは終了時に削除します。セッションで試す場合は、変換するだけで agent が手元の記録に書き込みます。anthy-unicode の記録を分けたいときは、`XDG_CONFIG_HOME` を一時ディレクトリに向けてセッションを起動してください。
