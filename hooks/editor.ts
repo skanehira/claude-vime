@@ -189,8 +189,8 @@ export class Composer {
       else if (isInRun && ch === ' ') this.session.nextCandidate()
       else if (isInRun && /^[1-9]$/.test(ch)) {
         if (number !== undefined) this.session.select(number)
-      } else if (key === 'left' && isResize(e.key)) await this.session.shrink()
-      else if (key === 'right' && isResize(e.key)) await this.session.expand()
+      } else if ((key === 'left' && isResize(e.key)) || isCtrl(e.key, 'a')) await this.session.shrink()
+      else if ((key === 'right' && isResize(e.key)) || isCtrl(e.key, 'e')) await this.session.expand()
       else if (key === 'left' || isCtrl(e.key, 'b')) this.session.prevSegment()
       else if (key === 'right' || isCtrl(e.key, 'f')) this.session.nextSegment()
       else if (isInRun && CONTINUES_RUN.test(ch)) return this.continueAfterCommit(e.text, ch)

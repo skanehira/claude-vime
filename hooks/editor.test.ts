@@ -90,7 +90,10 @@ class Box {
     }
     const isBack = key.key === 'left' || (key.ctrl === true && key.key === 'b')
     const isForward = key.key === 'right' || (key.ctrl === true && key.key === 'f')
-    const landing = isBack ? this.cursor - 1 : isForward ? this.cursor + 1 : this.cursor
+    // ctrl+a and ctrl+e move to the start and the end of the (one-line) box.
+    const isLineStart = key.ctrl === true && key.key === 'a'
+    const isLineEnd = key.ctrl === true && key.key === 'e'
+    const landing = isLineStart ? 0 : isLineEnd ? this.text.length : isBack ? this.cursor - 1 : isForward ? this.cursor + 1 : this.cursor
     await this.edit({ start: landing, end: landing, inputText: '', key })
   }
 
@@ -118,6 +121,8 @@ const OPTION_LEFT: KeyEvent = { key: 'left', meta: true }
 const OPTION_RIGHT: KeyEvent = { key: 'right', meta: true }
 const CTRL_F: KeyEvent = { key: 'f', ctrl: true }
 const CTRL_B: KeyEvent = { key: 'b', ctrl: true }
+const CTRL_A: KeyEvent = { key: 'a', ctrl: true }
+const CTRL_E: KeyEvent = { key: 'e', ctrl: true }
 
 describe('Composer off', () => {
   test('typing passes through as typed', async () => {
@@ -386,6 +391,33 @@ describe('Composer converting', () => {
       onSecond: '今日はいい',
       text: 'きょうはいい',
       candidates: { list: ['今日は', 'きょうは'], index: 1 },
+    })
+  })
+
+  test('ctrl+a shortens and ctrl+e lengthens the focused segment', async () => {
+    const { box, engine } = await boxOn()
+    await box.type('kyouhaii')
+    await box.type(' ')
+
+    await box.press(CTRL_A)
+    const shortened = box.shown()
+    await box.press(CTRL_E)
+
+    expect({ shortened, text: box.text, converted: engine.calls.slice(1) }).toEqual({
+      shortened: {
+        text: '今日は良い',
+        cursor: 2,
+        decorations: [
+          { start: 0, end: 2, underline: true, bold: true },
+          { start: 2, end: 3, underline: true },
+          { start: 3, end: 5, underline: true },
+        ],
+      },
+      text: '今日は良い',
+      converted: [
+        ['convert', 'きょうはいい', [[0, -1]]],
+        ['convert', 'きょうはいい', [[0, -1], [0, 1]]],
+      ],
     })
   })
 
