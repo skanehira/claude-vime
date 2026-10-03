@@ -227,6 +227,17 @@ describe('Session while converting', () => {
     })
   })
 
+  test('a conversion that answers no segments leaves the kana in place', async () => {
+    const { session } = await typed('kyou', new FakeEngine({ [keyOf('きょう', [])]: [] }))
+
+    await session.startConversion()
+
+    expect({ preedit: session.preedit(), candidates: session.candidates() }).toEqual({
+      preedit: { kind: 'composing', text: 'きょう' },
+      candidates: undefined,
+    })
+  })
+
   test('a conversion the engine fails leaves the kana in place', async () => {
     const { session } = await typed('kyou')
 
