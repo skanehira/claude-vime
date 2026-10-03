@@ -243,7 +243,7 @@ export class Composer {
   private cursor(): number {
     const p = this.session.preedit()
     if (p.kind === 'composing') return this.anchor + p.text.length
-    return this.anchor + p.segments.slice(0, p.current + 1).join('').length
+    return this.anchor + p.before.length + p.segments.slice(0, p.current + 1).join('').length
   }
 
   private async continueAfterCommit(text: string, ch: string): Promise<Answer> {
@@ -279,7 +279,7 @@ export class Composer {
 
   private preeditText(): string {
     const p = this.session.preedit()
-    return p.kind === 'composing' ? p.text : p.segments.join('')
+    return p.kind === 'composing' ? p.text : p.before + p.segments.join('') + p.after
   }
 
   private decorations(): Decoration[] {
@@ -287,11 +287,14 @@ export class Composer {
     if (p.kind === 'composing') {
       return p.text === '' ? [] : [{ start: this.anchor, end: this.anchor + p.text.length, underline: true }]
     }
-    let at = this.anchor
-    return p.segments.map((segment, i) => {
+    // The parts around the conversion stay underlined as composing kana are.
+    const around = (start: number, text: string): Decoration[] => (text === '' ? [] : [{ start, end: start + text.length, underline: true }])
+    let at = this.anchor + p.before.length
+    const segments = p.segments.map((segment, i): Decoration => {
       const run: Decoration = { start: at, end: at + segment.length, underline: true }
       at += segment.length
       return i === p.current ? { ...run, bold: true } : run
     })
+    return [...around(this.anchor, p.before), ...segments, ...around(at, p.after)]
   }
 }

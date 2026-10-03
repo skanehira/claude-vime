@@ -107,7 +107,7 @@ describe('Session while converting', () => {
     await session.startConversion()
 
     expect({ preedit: session.preedit(), candidates: session.candidates(), calls: engine.calls }).toEqual({
-      preedit: { kind: 'converting', segments: ['缶'], current: 0 },
+      preedit: { kind: 'converting', before: '', segments: ['缶'], current: 0, after: '' },
       candidates: { list: ['缶', '感'], index: 0 },
       calls: [['convert', 'かん', []]],
     })
@@ -129,7 +129,7 @@ describe('Session while converting', () => {
       { list: ['今日は', 'きょうは', '京は'], index: 1 },
       { list: ['今日は', 'きょうは', '京は'], index: 0 },
       { list: ['今日は', 'きょうは', '京は'], index: 2 },
-      { kind: 'converting', segments: ['京は', '良い'], current: 0 },
+      { kind: 'converting', before: '', segments: ['京は', '良い'], current: 0, after: '' },
     ])
   })
 
@@ -140,7 +140,7 @@ describe('Session while converting', () => {
     session.select(2)
 
     expect({ preedit: session.preedit(), candidates: session.candidates() }).toEqual({
-      preedit: { kind: 'converting', segments: ['京は', '良い'], current: 0 },
+      preedit: { kind: 'converting', before: '', segments: ['京は', '良い'], current: 0, after: '' },
       candidates: { list: ['今日は', 'きょうは', '京は'], index: 2 },
     })
   })
@@ -158,9 +158,9 @@ describe('Session while converting', () => {
     session.prevSegment()
 
     expect([atEnd, secondChanged, session.preedit()]).toEqual([
-      { kind: 'converting', segments: ['今日は', '良い'], current: 1 },
-      { kind: 'converting', segments: ['今日は', 'いい'], current: 1 },
-      { kind: 'converting', segments: ['今日は', 'いい'], current: 0 },
+      { kind: 'converting', before: '', segments: ['今日は', '良い'], current: 1, after: '' },
+      { kind: 'converting', before: '', segments: ['今日は', 'いい'], current: 1, after: '' },
+      { kind: 'converting', before: '', segments: ['今日は', 'いい'], current: 0, after: '' },
     ])
   })
 
@@ -174,8 +174,8 @@ describe('Session while converting', () => {
     await session.expand()
 
     expect({ shrunk, expanded: session.preedit(), calls: engine.calls }).toEqual({
-      shrunk: { kind: 'converting', segments: ['今日', 'は', '良い'], current: 0 },
-      expanded: { kind: 'converting', segments: ['今日は', '良い'], current: 0 },
+      shrunk: { kind: 'converting', before: '', segments: ['今日', 'は', '良い'], current: 0, after: '' },
+      expanded: { kind: 'converting', before: '', segments: ['今日は', '良い'], current: 0, after: '' },
       calls: [
         ['convert', 'きょうはいい', []],
         ['convert', 'きょうはいい', [[0, -1]]],
@@ -194,7 +194,7 @@ describe('Session while converting', () => {
 
     await session.expand()
 
-    expect(session.preedit()).toEqual({ kind: 'converting', segments: ['今日は', '良い'], current: 1 })
+    expect(session.preedit()).toEqual({ kind: 'converting', before: '', segments: ['今日は', '良い'], current: 1, after: '' })
   })
 
   test('commit answers the chosen candidates, has the engine learn the choices, and empties the preedit', async () => {
