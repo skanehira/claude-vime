@@ -1,0 +1,8 @@
+{
+  "name": "vime",
+  "version": "0.1.0",
+  "description": "Japanese input in the prompt box the vime.nvim way: type romaji, convert to kanji with Space, no OS IME switching",
+  "author": {
+    "name": "skanehira"
+  }
+}
