@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel the older runs still going on the same branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Pin the tools that decide green or red. The mod API is early access and changes
+# between Claude Code releases, so the version is the one the README names.
+env:
+  CLAUDE_CODE_VERSION: 2.1.288
+  TYPESCRIPT_VERSION: 5.9.3
+
+jobs:
+  mod:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Claude Code
+        run: npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+      - name: Validate the plugin
+        run: claude plugin validate .claude-plugin/plugin.json
+      - name: Validate the marketplace
+        run: claude plugin validate .
+      - name: Test the mod
+        run: claude plugin test .
+      # The types tsconfig.json extends are written when Claude Code loads the mod.
+      # Loading it headless writes them before the prompt is sent; the prompt then
+      # fails on the invalid key, so nothing reaches a model.
+      - name: Write the mod's types
+        env:
+          ANTHROPIC_API_KEY: sk-ant-invalid-ci-types-only
+        run: |
+          claude --plugin-dir . -p x < /dev/null || true
+          test -f .claude-plugin/types/tsconfig.json
+      - name: Type-check
+        run: npx -y -p "typescript@${TYPESCRIPT_VERSION}" tsc -p .
+
+  agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: cachix/install-nix-action@v31
+      # scripts/test-agent.sh exits 0 with SKIP when no agent is found, so the
+      # agent's presence is checked first.
+      - name: Test anthy-agent (nixpkgs anthy)
+        run: |
+          nix shell nixpkgs#anthy --command sh -c \
+            'command -v anthy-agent && VIME_ANTHY_AGENT=anthy-agent scripts/test-agent.sh'
