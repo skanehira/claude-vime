@@ -4,5 +4,6 @@
   "description": "Japanese input in the prompt box the vime.nvim way: type romaji, convert to kanji with Space, no OS IME switching",
   "author": {
     "name": "skanehira"
-  }
+  },
+  "types": "./types/index.d.ts"
 }
