@@ -1,31 +1,29 @@
 # claude-vime
 
-[日本語](README.ja.md)
-
-A [Claude Code](https://claude.com/claude-code) mod for typing Japanese in the prompt box the way [vime.nvim](https://github.com/skanehira/vime.nvim) does: you type romaji, it shows kana, and Space converts it to kanji. You never switch the OS input method.
+[Claude Code](https://claude.com/claude-code) のプロンプト欄で、[vime.nvim](https://github.com/skanehira/vime.nvim) と同じ方法で日本語を入力する mod です。ローマ字を打つとかなが表示され、Space で漢字に変換します。OS の IME を切り替える必要はありません。
 
 ```text
-type          kyouhaiitenkidane   the box shows  きょうはいいてんきだね   (underlined)
-Space                             the box shows  今日配位天気だね         (the focused segment 今日 in bold)
-                                  above the box  1:今日 2:きょう 3:凶 … (1/165)
-ctrl+e                            the box shows  今日は良い天気だね       (the focused segment lengthened to 今日は)
-ctrl+k                            the box keeps  今日は良い天気だね       (committed)
+入力          kyouhaiitenkidane   欄の表示  きょうはいいてんきだね   (下線付き)
+Space                             欄の表示  今日配位天気だね         (注目文節「今日」は太字)
+                                  欄の上    1:今日 2:きょう 3:凶 … (1/165)
+ctrl+e                            欄の表示  今日は良い天気だね       (注目文節を「今日は」に伸ばした)
+ctrl+k                            欄の表示  今日は良い天気だね       (確定)
 ```
 
-The candidates depend on anthy's version and on what it has learned.
+候補は anthy のバージョンと学習の状態によって変わります。
 
-## Requirements
+## 必要環境
 
-- **Claude Code 2.1.288.** This is the version the mod was tested with. Mods are early access, and their API can change between releases.
-- **anthy's command-line agent:** `anthy-agent-unicode` from [anthy-unicode](https://github.com/fujiwarat/anthy-unicode), or `anthy-agent` from the original anthy 9100h. The mod runs it in egg mode for each conversion.
-- **Hooks allowed.** A mod runs as plugin hooks, so it stays off where your settings or your organization's policy turn hooks off.
+- **Claude Code 2.1.288。** 動作を確認したバージョンです。mod は早期アクセスで、API はリリース間で変わることがあります。
+- **anthy のコマンドライン agent。** [anthy-unicode](https://github.com/fujiwarat/anthy-unicode) の `anthy-agent-unicode`、または原 anthy 9100h の `anthy-agent` です。mod は変換のたびにこれを egg モードで動かします。
+- **hooks が許可されていること。** mod はプラグインの hooks として動くので、設定や組織のポリシーで hooks を止めている環境では動きません。
 
-The mod was tested with `anthy-agent` from nixpkgs' `anthy` (9100h) and with `anthy-agent-unicode` from an anthy-unicode source build, both on macOS. A distribution's anthy package is expected to ship one of them, but none other was checked.
+動作を確認したのは、nixpkgs の `anthy` (9100h) の `anthy-agent` と、anthy-unicode をソースビルドした `anthy-agent-unicode` です。どちらも macOS で確認しました。各ディストリビューションの anthy パッケージにもどちらかが含まれているはずですが、確認はしていません。
 
-| Where             | How                                                                                     |
-| ----------------- | --------------------------------------------------------------------------------------- |
-| Nix               | `nix profile install nixpkgs#anthy`, or `pkgs.anthy` in your configuration (anthy-agent) |
-| Source (macOS too) | build anthy-unicode as below (anthy-agent-unicode)                                      |
+| 入手先                 | 方法                                                                              |
+| ---------------------- | --------------------------------------------------------------------------------- |
+| Nix                    | `nix profile install nixpkgs#anthy`、または構成に `pkgs.anthy` (anthy-agent)       |
+| ソースビルド (macOS も可) | 下記のとおり anthy-unicode をビルド (anthy-agent-unicode)                         |
 
 ```sh
 git clone https://github.com/fujiwarat/anthy-unicode && cd anthy-unicode
@@ -33,15 +31,15 @@ meson setup build --prefix=$HOME/.local --sysconfdir=$HOME/.local/etc -Demacs=di
 meson compile -C build && meson install -C build
 ```
 
-`--sysconfdir` must be an absolute path; with a relative one, anthy fails to start. Put `~/.local/bin` on the `PATH` Claude Code starts with.
+`--sysconfdir` は絶対パスで指定してください。相対パスだと anthy が起動に失敗します。Claude Code を起動するときの `PATH` に `~/.local/bin` を含めてください。
 
-When a session starts, the mod picks the agent in this order and checks each with `--version`:
+mod はセッション開始時に、次の順で agent を探します。それぞれ `--version` で動くかを確かめます。
 
-1. `$VIME_ANTHY_AGENT` alone, when it is set (a command name or a path)
-2. `anthy-agent-unicode` on `PATH`
-3. `anthy-agent` on `PATH`
+1. `$VIME_ANTHY_AGENT` (設定されていればこれだけ。コマンド名でもパスでもよい)
+2. `PATH` 上の `anthy-agent-unicode`
+3. `PATH` 上の `anthy-agent`
 
-## Install
+## 導入
 
 ```text
 /plugin marketplace add skanehira/claude-vime
@@ -49,31 +47,31 @@ When a session starts, the mod picks the agent in this order and checks each wit
 /reload-plugins
 ```
 
-To check that it is loaded, type `/vi`: `/vime` is offered with the description "Turn Japanese (romaji to kana and kanji) input on or off".
+読み込まれたかは `/vi` と打って確かめます。`/vime` が「Turn Japanese (romaji to kana and kanji) input on or off」という説明付きで候補に出れば読み込まれています。
 
-Turn Japanese input on and off with `/vime`, typed at the start of the box like any command; while Japanese input is on, a command's name still goes in as typed. Turning it off commits what is being composed. No key turns it on or off: none reaches a mod in every terminal without a change to Claude Code's key bindings.
+日本語入力の ON / OFF は `/vime` で切り替えます。他のコマンドと同じく欄の先頭で打ちます。日本語入力が ON の間も、コマンド名は打ったとおりに入ります。OFF にすると、入力中の内容は確定します。キーでの切り替えはありません。Claude Code のキー割り当てを変えずに、どのターミナルでも mod まで届くキーが無いためです。
 
-## Keys
+## キー
 
-While Japanese input is on, the status line shows `あ`, or `A` in ASCII mode.
+日本語入力が ON の間、ステータス行に `あ` が出ます。ASCII モード中は `A` が出ます。
 
-| Key                                   | While nothing is being composed | While composing kana                      | While converting                                         |
-| ------------------------------------- | ------------------------------- | ----------------------------------------- | -------------------------------------------------------- |
-| `a`–`z` `,` `.` `-` `/` `[` `]`       | starts composing kana           | adds to the kana                          | commits the conversion and starts new kana after it      |
-| Space                                 | types a space                   | converts the kana                         | picks the next candidate of the focused segment; shift+Space the previous one |
-| `1`–`9`                               | types the digit                 | adds the digit to the kana (`3ji` → `3じ`) | picks the candidate the band numbers so                  |
-| left / right, ctrl+b / ctrl+f         | moves the cursor                | commits the kana, then moves the cursor   | focuses the previous / next segment                      |
-| ctrl+a / ctrl+e (or option+left / right) | (as without the mod)         | commits the kana, then acts as usual      | shortens / lengthens the focused segment                 |
-| `;`                                   | opens ASCII mode                | opens or closes ASCII mode, keeping the kana | commits the conversion, then opens ASCII mode         |
-| `A`–`Z`                               | starts English text             | commits the kana, then starts English text | commits the conversion, then starts English text      |
-| ctrl+k                                | deletes to the end of the line | commits the kana                          | commits the converted part and goes on to the next kana part, or commits the run |
-| Backspace                             | deletes a character             | deletes the last kana (きょ counts as one) | goes back to the kana                                    |
-| Enter                                 | sends the prompt                | sends it with the kana committed          | sends it with the conversion committed                   |
-| any other key                         | (as without the mod)            | commits the kana, then acts as usual      | commits the conversion, then goes in after it            |
+| キー                            | 何も入力していないとき | かなを入力中                            | 変換中                                     |
+| ------------------------------- | ---------------------- | --------------------------------------- | ------------------------------------------ |
+| `a`–`z` `,` `.` `-` `/` `[` `]` | かなの入力を始める     | かなに追加                              | 変換を確定し、その後ろで新しいかなを始める |
+| Space                           | 空白を入力             | かなを変換                              | 注目文節の次の候補 (shift+Space で前の候補)                         |
+| `1`–`9`                         | 数字を入力             | かなに数字を追加 (`3ji` → `3じ`)        | 帯でその番号の候補を選ぶ                   |
+| 左 / 右、ctrl+b / ctrl+f        | カーソル移動           | かなを確定してからカーソル移動          | 前 / 次の文節に注目を移す                  |
+| ctrl+a / ctrl+e (option+左 / 右 も可) | (mod が無いときと同じ) | かなを確定してから通常の動作      | 注目文節を縮める / 伸ばす                  |
+| `;`                             | ASCII モードに入る     | かなを保留したまま ASCII モードに入る / 抜ける | 変換を確定して ASCII モードに入る    |
+| `A`–`Z`                         | 英字入力を始める       | かなを確定して英字入力を始める          | 変換を確定して英字入力を始める             |
+| ctrl+k                          | 行末まで削除           | かなを確定                              | 変換中の区間を確定して次のかなの区間へ進む。最後なら全体を確定 |
+| Backspace                       | 1 文字削除             | 最後のかなを削除 (きょ は 1 単位)       | かなに戻す                                 |
+| Enter                           | プロンプトを送信       | かなを確定して送信                      | 変換を確定して送信                         |
+| その他のキー                    | (mod が無いときと同じ) | かなを確定してから通常の動作            | 変換を確定し、その後ろに入れる             |
 
-ctrl+k commits without sending the prompt and leaves Japanese input on; while composing or converting it deletes nothing.
+ctrl+k はプロンプトを送信せずに確定し、日本語入力は ON のままです。かな入力中・変換中は何も削除しません。
 
-shift+Space picks the previous candidate only where the terminal tells shift+Space from Space; elsewhere it arrives as Space and picks the next one. WezTerm sends it as a plain Space by default. This entry in `config.keys` makes it send shift+Space as `ESC [ 32 ; 2 u` while Claude Code is in front, and a plain space otherwise:
+shift+Space で前の候補に戻れるのは、ターミナルが shift+Space と Space を区別して送る場合だけです。区別しないターミナルでは Space として届き、次の候補に進みます。WezTerm は既定で普通の Space として送ります。`config.keys` に次の項目を足すと、Claude Code が前面にあるときだけ shift+Space を `ESC [ 32 ; 2 u` で送り、それ以外では普通の空白を送ります:
 
 ```lua
 {
@@ -90,105 +88,105 @@ shift+Space picks the previous candidate only where the terminal tells shift+Spa
 },
 ```
 
-Inside tmux or another multiplexer, the process in front is the multiplexer, so the entry sends a plain space there.
+tmux などのマルチプレクサの中では、前面のプロセスがマルチプレクサになるため、この設定は普通の空白を送ります。
 
-ctrl+left and ctrl+right shorten and lengthen a segment too, where the terminal passes them on (macOS takes them for switching spaces by default).
+ctrl+左 / ctrl+右 でも文節を縮める / 伸ばすことができます。ただし端末がそのキーを渡す場合に限ります (macOS は既定でデスクトップの切り替えに使います)。
 
-A trailing `n` shows as `n` until the next key decides between ん and な-row; committing turns it into ん, and `nn` always gives ん. `'` also goes into kana that is being composed.
+末尾の `n` は、次のキーで ん か な行かが決まるまで `n` のまま表示します。確定すると ん になり、`nn` は常に ん です。`'` も入力中のかなに続けて入ります。
 
-While converting, the cursor sits at the end of the focused segment. That keeps room on both sides for left and right: at the edge of the box, an arrow key that cannot move the cursor never reaches the mod.
+変換中は、カーソルを注目文節の末尾に置きます。左右どちらにも動ける余地を残すためです。欄の端でカーソルが動けない矢印キーは、mod まで届きません。
 
-A slash command's name typed at the start of the box goes in as typed, so `/vime` and other commands work while Japanese input is on; after the name and a space, romaji composes kana again.
+欄の先頭で打つスラッシュコマンドの名前は、打ったとおりに入ります。日本語入力が ON のままでも `/vime` などのコマンドを使えます。名前の後に空白を打つと、そこからはローマ字がまたかなになります。
 
-Several characters arriving as one edit (a paste, or keys Claude Code folds together) are taken one at a time when they are all romaji (any printable characters in ASCII mode or English text), and otherwise commit the kana and go in as they came.
+1 回の編集で複数の文字が届いた場合 (ペースト、または Claude Code がまとめて渡したキー) は、全文字がローマ字なら 1 文字ずつ処理します (ASCII モード中と英字入力中は表示可能な文字すべてが対象)。それ以外は、かなを確定してから届いたとおりに入れます。
 
-### English text (an uppercase letter)
+### 英字入力 (大文字始まり)
 
-As in vime.nvim, an uppercase letter commits the kana pending in place and starts English text. Everything typed after it, lowercase, digits, symbols and Space included, goes in as it is and is not converted, until ctrl+k commits it (or the prompt is sent, or Japanese input is turned off). `;` `;` closes it, after which romaji compose kana again.
-
-```text
-type   kanReact is   the box shows  かんReact is   (かん committed, React is still open)
-ctrl+k               the box keeps  かんReact is
-```
-
-ASCII mode differs: it keeps the kana pending instead of committing them, and ends at the next `;`.
-
-### ASCII mode (`;`)
-
-As in vime.nvim, `;` opens ASCII mode, and everything you type goes in as it is (uppercase, digits, symbols and spaces) until `;` again. Kana you typed before stay pending, and romaji typed after the closing `;` start new kana:
+vime.nvim と同じく、大文字を打つと、保留中のかなをその場で確定して英字入力が始まります。その後に打った文字 (小文字・数字・記号・Space を含む) は変換されずにそのまま入り、ctrl+k で確定するまで続きます (プロンプトを送信したときと、日本語入力を OFF にしたときも確定します)。`;` `;` で閉じると、その後のローマ字はまたかなになります。
 
 ```text
-type   ;React;wotsukatte   the box shows  Reactをつかって
-Space                      the box shows  Reactを使って   (only the kana part is converted)
-ctrl+k                     the box keeps  Reactを使って
+入力   kanReact is   欄の表示  かんReact is   (「かん」は確定済み、React is は入力中)
+ctrl+k               欄の表示  かんReact is
 ```
 
-- Space converts the first kana part; the latin parts stay as they are around it. With several kana parts, ctrl+k commits one and goes on to convert the next.
-- Right after a latin part, Space puts in a space.
-- Backspace deletes latin characters one by one and stays in ASCII mode.
-- There is no way to type `;` itself while in ASCII mode; close it first.
+ASCII モードとの違いは、かなを確定せずに保留したままにすることと、次の `;` で終わることです。
 
-## Behaviour to know
+### ASCII モード (`;`)
 
-### Each conversion starts the agent
+vime.nvim と同じく、`;` で ASCII モードに入ります。もう一度 `;` を押すまで、打った文字 (大文字・数字・記号・空白) がそのまま入ります。それまでに打ったかなは保留したままで、閉じる `;` の後に打ったローマ字は新しいかなになります:
 
-Space while composing and ctrl+a / ctrl+e (or option+left / option+right) each run the agent once and wait for it: about 10 ms on the machine the mod was tested on. Committing a conversion runs it once more to have anthy learn your choices, after the key has been answered, so typing never waits on it. Typing kana runs nothing.
+```text
+入力   ;React;wotsukatte   欄の表示  Reactをつかって
+Space                      欄の表示  Reactを使って   (かなの部分だけを変換)
+ctrl+k                     欄の表示  Reactを使って
+```
 
-A key typed while a conversion runs can reach the box afterwards, raw: `今日は良いka`. The next key you type takes it back out and treats it as typed, so the box becomes `今日は良いかい` on `i`. Sending the prompt right away does the same.
+- Space は最初のかなの部分を変換し、英字の部分は前後にそのまま残ります。かなの部分が複数あるときは、ctrl+k で 1 つずつ確定して次の部分の変換へ進みます。
+- 英字の部分の直後では、Space は空白として入ります。
+- Backspace は英字を 1 文字ずつ消し、ASCII モードは続きます。
+- ASCII モード中に `;` そのものを入力する方法はありません。いったんモードを抜けてから打ってください。
 
-A reading over 500 bytes (about 166 kana) is too long for one agent command line, and converting it shows an error instead.
+## 知っておくべき挙動
 
-### Learning
+### 変換のたびに agent を起動する
 
-anthy keeps records of the conversions and of the candidates you commit, and ranks candidates by them. The mod keeps nothing of its own.
+かな入力中の Space と、ctrl+a / ctrl+e (option+左 / 右) では、agent を 1 回動かして結果を待ちます。動作確認したマシンでは約 10 ms でした。変換を確定したときも、選んだ候補を anthy に学習させるために agent をもう 1 回動かします。ただしこれはキーへの応答を返した後に行うので、打鍵が待たされることはありません。かなの入力では何も起動しません。
 
-| Agent                 | Where anthy keeps its records                                              |
-| --------------------- | -------------------------------------------------------------------------- |
-| `anthy-agent-unicode` | `$XDG_CONFIG_HOME/anthy`, or `~/.config/anthy` when `XDG_CONFIG_HOME` is unset |
-| `anthy-agent` (9100h) | `~/.anthy` in your account's home directory, whatever `HOME` says          |
+変換の処理中に打ったキーは、処理が終わってから生のまま欄に入ることがあります (`今日は良いka`)。次のキーを打つと、それを取り出して打ったものとして処理し直します。`i` を打てば欄は `今日は良いかい` になります。すぐにプロンプトを送信した場合も同じように処理します。
 
-### Vim mode
+読みが 500 バイト (かなでおよそ 166 文字) を超えると、agent のコマンド 1 行に収まりません。その場合は変換せずにエラーを出します。
 
-In insert mode the keys work as above. Esc switches to normal mode and never reaches the mod, and normal-mode commands change the box without the mod seeing them. Back in insert mode, composing goes on where it was if the box is unchanged; if a normal-mode command changed it, the kana stays as it is and the next key starts afresh.
+### 学習
 
-### The band above the prompt
+anthy は、変換の記録と確定した候補の記録を残し、候補の順位に使います。mod 自体は何も保存しません。
 
-While converting, the band above the prompt lists the focused segment's candidates. Another mod's band (session-brief, for example) is hidden until the conversion ends.
+| agent                 | anthy の記録先                                                              |
+| --------------------- | --------------------------------------------------------------------------- |
+| `anthy-agent-unicode` | `$XDG_CONFIG_HOME/anthy` (`XDG_CONFIG_HOME` が未設定なら `~/.config/anthy`) |
+| `anthy-agent` (9100h) | アカウントのホームディレクトリの `~/.anthy` (`HOME` の値によらない)         |
 
-### What is not there
+### vim モード
 
-- **Esc does not commit.** Outside vim mode Esc cancels in Claude Code; in vim mode it switches to normal mode. Neither reaches a mod.
-- **The previous candidate needs shift+Space as the terminal reports it.** ctrl+p recalls history, and up, down, ctrl+n, Tab and shift+arrows never reach a mod; where shift+Space arrives as Space, pick a candidate by its number.
-- **No katakana or alphabet commit (vime.nvim's F7 / F10), no dictionary registration, no SKK dictionary import, no completion.**
+挿入モードでは、上記のとおりにキーが働きます。Esc はノーマルモードへの切り替えに使われ、mod には届きません。ノーマルモードのコマンドは、mod を通らずに欄を変えます。挿入モードに戻ったとき、欄が変わっていなければかなの入力はそのまま続きます。ノーマルモードで欄を変えた場合は、かなはそのまま残り、次のキーから入力し直しになります。
 
-## Troubleshooting
+### 欄の上の帯
 
-When a conversion fails, the mod shows the reason as a toast and leaves the kana in place:
+変換中は、欄の上の帯に注目文節の候補を出します。その間、他の mod の帯 (session-brief など) は隠れます。
 
-| Toast                                                   | What to do                                                                                   |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `vime: anthy-agent not found: …`                        | Install an agent (see Requirements), or set `VIME_ANTHY_AGENT`, then start a new session      |
-| `vime: anthy-agent exited with 1: …`                    | Run `scripts/test-agent.sh` in this repository to see how the agent fails                    |
-| `vime: the reading is too long to convert at once (…)` | Convert it in shorter pieces: press Space every few words                                     |
+### できないこと
 
-## Uninstall
+- **Esc では確定しません。** vim モード以外では Esc は Claude Code の取消キーで、vim モードではノーマルモードへの切り替えです。どちらも mod には届きません。
+- **前の候補に戻すには、ターミナルが shift+Space を区別して送る必要があります。** ctrl+p は履歴の呼び出しになり、上・下・ctrl+n・Tab・shift+矢印は mod に届きません。shift+Space が Space として届く環境では、番号で候補を選んでください。
+- **カタカナ確定・英字確定 (vime.nvim の F7 / F10)、辞書登録、SKK 辞書の取り込み、補完はありません。**
+
+## うまくいかないとき
+
+変換に失敗すると、理由をトーストで出し、かなはそのまま残します:
+
+| トースト                                                | 対処                                                                              |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `vime: anthy-agent not found: …`                        | agent を導入する (必要環境を参照) か `VIME_ANTHY_AGENT` を設定し、セッションを開き直す |
+| `vime: anthy-agent exited with 1: …`                    | このリポジトリで `scripts/test-agent.sh` を実行し、agent の失敗のしかたを見る       |
+| `vime: the reading is too long to convert at once (…)` | 数語ごとに Space を押して、短く区切って変換する                                     |
+
+## アンインストール
 
 ```bash
 claude plugin uninstall vime@claude-vime
 claude plugin marketplace remove claude-vime
 ```
 
-## Development
+## 開発
 
-You need TypeScript 5.0 or later for `tsc`. Its settings come from `.claude-plugin/types/`, which Claude Code writes when it loads the mod from this folder, so run `claude --plugin-dir .` once after cloning (the folder is ignored by git).
+`tsc` には TypeScript 5.0 以上が必要です。設定は `.claude-plugin/types/` から読みます。このディレクトリは Claude Code がこのフォルダから mod を読み込むときに書き出すので、clone 後に一度 `claude --plugin-dir .` を実行してください (git の管理対象外です)。
 
 ```bash
-claude plugin validate .claude-plugin/plugin.json   # the plugin: its manifest and its hooks module
-claude plugin validate .                            # the marketplace manifest
-claude plugin test .                                # hooks/*.test.ts(x) on Claude Code's own mod runtime
-scripts/test-agent.sh                               # what the mod relies on in each installed agent
-claude --plugin-dir .                               # try it in a session
-tsc -p .                                            # type-check
+claude plugin validate .claude-plugin/plugin.json   # プラグイン: manifest と hooks module
+claude plugin validate .                            # marketplace の manifest
+claude plugin test .                                # hooks/*.test.ts(x) を Claude Code 自身の mod 実行環境で走らせる
+scripts/test-agent.sh                               # 導入済みの各 agent について mod が頼る挙動を確かめる
+claude --plugin-dir .                               # セッションで試す
+tsc -p .                                            # 型チェック
 ```
 
-`scripts/test-agent.sh` keeps its learning records apart from yours: anthy-unicode writes them under a temporary `XDG_CONFIG_HOME`, and anthy 9100h under a test personality in `~/.anthy`, whose files the script removes when it ends. When you try the mod in a session, the agent writes to your own records, since converting alone writes them: start the session with `XDG_CONFIG_HOME` pointing at a temporary directory to keep anthy-unicode's records apart.
+`scripts/test-agent.sh` は、学習の記録を手元の記録と分けて書きます。anthy-unicode は一時的な `XDG_CONFIG_HOME` の下に、anthy 9100h は `~/.anthy` の試験用 personality に書き、後者のファイルは終了時に削除します。セッションで試す場合は、変換するだけで agent が手元の記録に書き込みます。anthy-unicode の記録を分けたいときは、`XDG_CONFIG_HOME` を一時ディレクトリに向けてセッションを起動してください。
