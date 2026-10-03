@@ -77,7 +77,8 @@ class Box {
   }
 
   async type(chars: string) {
-    for (const ch of chars) await this.edit({ start: this.cursor, end: this.cursor, inputText: ch, key: { key: ch } })
+    // A typed key arrives named by its character, Space as `space` (as observed).
+    for (const ch of chars) await this.edit({ start: this.cursor, end: this.cursor, inputText: ch, key: { key: ch === ' ' ? 'space' : ch } })
   }
 
   /** ctrl+k: a deletion from the cursor to the end of the (one-line) box, possibly empty. */
@@ -115,11 +116,9 @@ async function boxOn(text = '', engine = new FakeEngine(ANSWERS)) {
   return { box: new Box(composer, text), engine, composer }
 }
 
-// As observed: ctrl+j (unbound from chat:newline) puts in a newline and arrives as `enter` through
-// tmux, as `j` with ctrl in a terminal that reports modifiers; a plain Enter never reaches
-// prompt.edit (it submits).
-const CTRL_J: KeyEvent = { key: 'enter' }
-const CTRL_J_REPORTED: KeyEvent = { key: 'j', ctrl: true }
+// As observed: shift+space puts in a space and arrives as `space` with shift, with no key binding
+// to change; a plain Enter never reaches prompt.edit (it submits).
+const SHIFT_SPACE: KeyEvent = { key: 'space', shift: true }
 const OPTION_RETURN: KeyEvent = { key: 'return', meta: true }
 const BACKSPACE: KeyEvent = { key: 'backspace' }
 const LEFT: KeyEvent = { key: 'left' }
@@ -142,13 +141,13 @@ describe('Composer off', () => {
     expect(box.shown()).toEqual({ text: 'ka', cursor: 2, decorations: [] })
   })
 
-  test('ctrl+j reported as j with ctrl turns it on and off without putting in a newline', async () => {
+  test('shift+space turns it on and off without putting in a space', async () => {
     const box = new Box(new Composer(new FakeEngine(ANSWERS)), 'x')
 
-    await box.edit({ start: 1, end: 1, inputText: '\n', key: CTRL_J_REPORTED })
+    await box.edit({ start: 1, end: 1, inputText: ' ', key: SHIFT_SPACE })
     const isOnAfterFirst = box.composer.isOn
     await box.type('ka')
-    await box.edit({ start: 2, end: 2, inputText: '\n', key: CTRL_J_REPORTED })
+    await box.edit({ start: 2, end: 2, inputText: ' ', key: SHIFT_SPACE })
     await box.type('b')
 
     expect({ isOnAfterFirst, isOn: box.composer.isOn, shown: box.shown() }).toEqual({
@@ -158,10 +157,10 @@ describe('Composer off', () => {
     })
   })
 
-  test('ctrl+j turns it on without changing the box, and typing then composes kana', async () => {
+  test('shift+space turns it on without changing the box, and typing then composes kana', async () => {
     const box = new Box(new Composer(new FakeEngine(ANSWERS)), 'x')
 
-    await box.edit({ start: 1, end: 1, inputText: '\n', key: CTRL_J })
+    await box.edit({ start: 1, end: 1, inputText: ' ', key: SHIFT_SPACE })
     const afterToggle = box.shown()
     await box.type('ka')
 
@@ -383,11 +382,11 @@ describe('Composer composing', () => {
     expect({ answer, text: box.text }).toEqual({ answer: { kind: 'pass' }, text: 'abcd' })
   })
 
-  test('ctrl+j turns it off, committing the kana as it stands', async () => {
+  test('shift+space turns it off, committing the kana as it stands', async () => {
     const { box } = await boxOn()
     await box.type('kan')
 
-    await box.edit({ start: 3, end: 3, inputText: '\n', key: CTRL_J })
+    await box.edit({ start: box.cursor, end: box.cursor, inputText: ' ', key: SHIFT_SPACE })
     await box.type('a')
 
     expect({ shown: box.shown(), isOn: box.composer.isOn }).toEqual({
