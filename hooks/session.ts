@@ -84,12 +84,23 @@ export class Session {
     return this.parts.at(-1)?.kind === 'latin'
   }
 
+  /** What is typed goes in as it is: ASCII mode, or English text an uppercase letter started. */
+  isTypingLatin(): boolean {
+    const tail = this.parts.at(-1)
+    return this.ascii || (tail?.kind === 'latin' && !tail.isClosed)
+  }
+
   /** Adds one typed character; while converting, commits first and answers what was committed. */
   async input(ch: string): Promise<string> {
     const committed = this.conversion === undefined ? '' : await this.commit()
     if (ch === ASCII_TOGGLE) this.toggleAscii()
-    else if (this.ascii) this.latinTail().text += ch
-    else this.kanaTail().romaji += ch
+    else if (this.isTypingLatin()) this.latinTail().text += ch
+    else if (/^[A-Z]$/.test(ch)) {
+      // vime.nvim's latin run: what is pending is committed in place, and English text starts.
+      const pending = this.parts.length > 0 ? await this.commit() : ''
+      this.parts.push({ kind: 'latin', text: ch, isClosed: false })
+      return committed + pending
+    } else this.kanaTail().romaji += ch
     return committed
   }
 

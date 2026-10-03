@@ -404,3 +404,48 @@ describe('Session ASCII mode (;)', () => {
     })
   })
 })
+
+describe('Session English text (an uppercase start)', () => {
+  test('an uppercase letter with nothing pending starts English text that takes lowercase and spaces as typed', async () => {
+    const { session } = await typed('Hello wo')
+
+    expect({ preedit: session.preedit(), isTypingLatin: session.isTypingLatin() }).toEqual({
+      preedit: { kind: 'composing', text: 'Hello wo' },
+      isTypingLatin: true,
+    })
+  })
+
+  test('an uppercase letter commits the pending kana, answers them, and starts English text', async () => {
+    const { session } = await typed('kan')
+
+    const committed = await session.input('R')
+
+    expect({ committed, preedit: session.preedit() }).toEqual({ committed: 'かん', preedit: { kind: 'composing', text: 'R' } })
+  })
+
+  test('English text is not converted', async () => {
+    const { session, engine } = await typed('React')
+
+    await session.startConversion()
+
+    expect({ preedit: session.preedit(), calls: engine.calls }).toEqual({ preedit: { kind: 'composing', text: 'React' }, calls: [] })
+  })
+
+  test('; ; closes English text, after which romaji compose kana', async () => {
+    const { session } = await typed('Re;;ka')
+
+    expect({ preedit: session.preedit(), isTypingLatin: session.isTypingLatin() }).toEqual({
+      preedit: { kind: 'composing', text: 'Reか' },
+      isTypingLatin: false,
+    })
+  })
+
+  test('commitStep ends English text and answers it', async () => {
+    const { session } = await typed('React')
+
+    const committed = await session.commitStep()
+
+    expect({ committed, isEmpty: session.isEmpty() }).toEqual({ committed: 'React', isEmpty: true })
+  })
+})
+

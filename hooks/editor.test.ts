@@ -213,17 +213,65 @@ describe('Composer composing', () => {
     const { box } = await boxOn()
     await box.type('kan')
 
-    await box.type('A')
+    await box.type('!')
 
-    expect(box.shown()).toEqual({ text: 'かんA', cursor: 3, decorations: [] })
+    expect(box.shown()).toEqual({ text: 'かん!', cursor: 3, decorations: [] })
   })
 
   test('a character that cannot start a run passes through', async () => {
     const { box } = await boxOn()
 
-    await box.type('A1 ')
+    await box.type('1 !')
 
-    expect(box.shown()).toEqual({ text: 'A1 ', cursor: 3, decorations: [] })
+    expect(box.shown()).toEqual({ text: '1 !', cursor: 3, decorations: [] })
+  })
+
+  test('an uppercase letter commits the pending kana and starts English text, Space and all, until ctrl+k', async () => {
+    const { box, engine } = await boxOn()
+    await box.type('kan')
+
+    await box.type('React is')
+    const latin = box.shown()
+    await box.killToEnd()
+
+    expect({ latin, committed: box.shown(), calls: engine.calls }).toEqual({
+      latin: { text: 'かんReact is', cursor: 10, decorations: [{ start: 2, end: 10, underline: true }] },
+      committed: { text: 'かんReact is', cursor: 10, decorations: [] },
+      calls: [],
+    })
+  })
+
+  test('an uppercase letter with nothing pending starts English text where it is typed', async () => {
+    const { box } = await boxOn('> ')
+
+    await box.type('Hello world')
+
+    expect(box.shown()).toEqual({ text: '> Hello world', cursor: 13, decorations: [{ start: 2, end: 13, underline: true }] })
+  })
+
+  test('a pasted word starting with a capital becomes English text, not kana', async () => {
+    const { box } = await boxOn()
+
+    await box.insert('Hello')
+
+    expect(box.shown()).toEqual({ text: 'Hello', cursor: 5, decorations: [{ start: 0, end: 5, underline: true }] })
+  })
+
+  test('a burst of keys while typing English text goes in as typed, spaces included', async () => {
+    const { box } = await boxOn()
+    await box.type('He')
+
+    await box.insert('llo world')
+
+    expect(box.shown()).toEqual({ text: 'Hello world', cursor: 11, decorations: [{ start: 0, end: 11, underline: true }] })
+  })
+
+  test('; ; closes English text, and romaji after it compose kana again', async () => {
+    const { box } = await boxOn()
+
+    await box.type('Re;;ka')
+
+    expect(box.shown()).toEqual({ text: 'Reか', cursor: 3, decorations: [{ start: 0, end: 3, underline: true }] })
   })
 
   test('a box changed under the run (sent or cleared) starts the next run afresh', async () => {
@@ -531,10 +579,23 @@ describe('Composer converting', () => {
     await box.type('kyouhaii')
     await box.type(' ')
 
-    await box.type('A')
+    await box.type('!')
 
     expect({ shown: box.shown(), learned: engine.calls.at(-1) }).toEqual({
-      shown: { text: '今日は良いA', cursor: 6, decorations: [] },
+      shown: { text: '今日は良い!', cursor: 6, decorations: [] },
+      learned: ['commit', 'きょうはいい', [], [0, 0]],
+    })
+  })
+
+  test('an uppercase letter commits the conversion and starts English text after it', async () => {
+    const { box, engine } = await boxOn()
+    await box.type('kyouhaii')
+    await box.type(' ')
+
+    await box.type('Go')
+
+    expect({ shown: box.shown(), learned: engine.calls.at(-1) }).toEqual({
+      shown: { text: '今日は良いGo', cursor: 7, decorations: [{ start: 5, end: 7, underline: true }] },
       learned: ['commit', 'きょうはいい', [], [0, 0]],
     })
   })
@@ -603,9 +664,9 @@ describe('Composer converting', () => {
     await box.type('kyouhaii')
     await typedWhileConverting(box, 'ka')
 
-    await box.type('A')
+    await box.type('!')
 
-    expect(box.shown()).toEqual({ text: '今日は良いかA', cursor: 7, decorations: [] })
+    expect(box.shown()).toEqual({ text: '今日は良いか!', cursor: 7, decorations: [] })
   })
 
   test('keys typed while a conversion ran are taken as typed when the prompt is sent next', async () => {

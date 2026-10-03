@@ -23,9 +23,10 @@ export type BoxAnswer = { text: string; cursor: number; decorations: Decoration[
 export type Answer = { kind: 'box'; box: BoxAnswer; error?: string } | { kind: 'pass'; edit?: Edit }
 
 // A run starts on a lowercase letter or Japanese punctuation, and goes on with digits and ' too.
-// ; opens and closes ASCII mode (vime.nvim's ascii_toggle), in which any printable character goes in as typed.
-const STARTS_RUN = /^[a-z,.\-/[\];]$/
-const CONTINUES_RUN = /^[a-z0-9,.\-/[\]';]$/
+// ; opens and closes ASCII mode (vime.nvim's ascii_toggle) and an uppercase letter starts English
+// text; in either, any printable character goes in as typed.
+const STARTS_RUN = /^[a-zA-Z,.\-/[\];]$/
+const CONTINUES_RUN = /^[a-zA-Z0-9,.\-/[\]';]$/
 const PRINTABLE = /^[\x20-\x7e]$/
 
 // Key shapes as a terminal delivers them to prompt.edit (observed on Claude Code 2.1.288):
@@ -176,7 +177,7 @@ export class Composer {
     }
     if (!this.on) return { kind: 'pass' }
     // A burst of keys or a paste comes with no key; a key that puts in text of its own (ctrl+y) is not one.
-    const takes = this.session.isAscii() ? PRINTABLE : CONTINUES_RUN
+    const takes = this.session.isTypingLatin() ? PRINTABLE : CONTINUES_RUN
     if (e.key === undefined && e.start === e.end && e.inputText.length > 1 && [...e.inputText].every(c => takes.test(c))) {
       return this.burst(e)
     }
@@ -239,9 +240,9 @@ export class Composer {
       else await this.session.startConversion()
       return this.render(e.text)
     }
-    if (isAtEnd && (this.session.isAscii() ? PRINTABLE : CONTINUES_RUN).test(ch)) {
-      await this.session.input(ch)
-      return this.render(e.text)
+    if (isAtEnd && takes.test(ch)) {
+      // An uppercase letter may commit what is pending first; the new run goes in after it.
+      return this.continueAfterCommit(e.text, ch)
     }
     return this.commitAndPass(e)
   }
