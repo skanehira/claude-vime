@@ -105,9 +105,11 @@ async function boxOn(text = '', engine = new FakeEngine(ANSWERS)) {
   return { box: new Box(composer, text), engine, composer }
 }
 
-// As observed in a terminal: ctrl+j (unbound from chat:newline) arrives as `enter` inserting a newline;
-// a plain Enter never reaches prompt.edit (it submits).
+// As observed: ctrl+j (unbound from chat:newline) puts in a newline and arrives as `enter` through
+// tmux, as `j` with ctrl in a terminal that reports modifiers; a plain Enter never reaches
+// prompt.edit (it submits).
 const CTRL_J: KeyEvent = { key: 'enter' }
+const CTRL_J_REPORTED: KeyEvent = { key: 'j', ctrl: true }
 const OPTION_RETURN: KeyEvent = { key: 'return', meta: true }
 const BACKSPACE: KeyEvent = { key: 'backspace' }
 const LEFT: KeyEvent = { key: 'left' }
@@ -124,6 +126,22 @@ describe('Composer off', () => {
     await box.type('ka')
 
     expect(box.shown()).toEqual({ text: 'ka', cursor: 2, decorations: [] })
+  })
+
+  test('ctrl+j reported as j with ctrl turns it on and off without putting in a newline', async () => {
+    const box = new Box(new Composer(new FakeEngine(ANSWERS)), 'x')
+
+    await box.edit({ start: 1, end: 1, inputText: '\n', key: CTRL_J_REPORTED })
+    const isOnAfterFirst = box.composer.isOn
+    await box.type('ka')
+    await box.edit({ start: 2, end: 2, inputText: '\n', key: CTRL_J_REPORTED })
+    await box.type('b')
+
+    expect({ isOnAfterFirst, isOn: box.composer.isOn, shown: box.shown() }).toEqual({
+      isOnAfterFirst: true,
+      isOn: false,
+      shown: { text: 'xかb', cursor: 3, decorations: [] },
+    })
   })
 
   test('ctrl+j turns it on without changing the box, and typing then composes kana', async () => {

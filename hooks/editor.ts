@@ -27,10 +27,11 @@ const STARTS_RUN = /^[a-z,.\-/[\]]$/
 const CONTINUES_RUN = /^[a-z0-9,.\-/[\]']$/
 
 // Key shapes as a terminal delivers them to prompt.edit (observed on Claude Code 2.1.288):
-// ctrl+j, once unbound from chat:newline, arrives as `enter` putting in a newline, while
+// ctrl+j, once unbound from chat:newline, puts in a newline and arrives as `enter` (through
+// tmux) or as `j` with ctrl (a terminal that reports modifiers), while
 // a plain Enter never arrives (it submits); option+arrows arrive with `meta`, ctrl+arrows
 // with `ctrl`, and shift+arrows not reliably at all.
-const isToggle = (e: Edit) => e.key?.key === 'enter'
+const isToggle = (e: Edit) => e.key?.key === 'enter' || (e.key?.ctrl === true && e.key.key === 'j')
 const isCtrl = (key: KeyEvent | undefined, name: string) => key?.ctrl === true && key.key === name
 const isResize = (key: KeyEvent | undefined) => key?.meta === true || key?.ctrl === true
 
