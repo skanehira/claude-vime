@@ -163,7 +163,8 @@ export class Composer {
       return { kind: 'box', box: { text, cursor: e.cursor, decorations: [] } }
     }
     if (!this.on) return { kind: 'pass' }
-    if (e.start === e.end && e.inputText.length > 1 && [...e.inputText].every(c => CONTINUES_RUN.test(c))) {
+    // A burst of keys or a paste comes with no key; a key that puts in text of its own (ctrl+y) is not one.
+    if (e.key === undefined && e.start === e.end && e.inputText.length > 1 && [...e.inputText].every(c => CONTINUES_RUN.test(c))) {
       return this.burst(e)
     }
 

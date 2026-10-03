@@ -123,6 +123,7 @@ const CTRL_F: KeyEvent = { key: 'f', ctrl: true }
 const CTRL_B: KeyEvent = { key: 'b', ctrl: true }
 const CTRL_A: KeyEvent = { key: 'a', ctrl: true }
 const CTRL_E: KeyEvent = { key: 'e', ctrl: true }
+const CTRL_Y: KeyEvent = { key: 'y', ctrl: true }
 
 describe('Composer off', () => {
   test('typing passes through as typed', async () => {
@@ -293,6 +294,14 @@ describe('Composer composing', () => {
     const sent = await composer.commitForSubmit('something else')
 
     expect(sent).toBe('something else')
+  })
+
+  test('ctrl+y yanks killed romaji as it was, not as typed kana', async () => {
+    const { box } = await boxOn('ab')
+
+    const answer = await box.edit({ start: 2, end: 2, inputText: 'cd', key: CTRL_Y })
+
+    expect({ answer, text: box.text }).toEqual({ answer: { kind: 'pass' }, text: 'abcd' })
   })
 
   test('ctrl+j turns it off, committing the kana as it stands', async () => {
