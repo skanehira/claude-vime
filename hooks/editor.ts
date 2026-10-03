@@ -181,6 +181,12 @@ export class Composer {
     const key = e.key?.key
     const candidates = this.session.candidates()
 
+    if (isCtrl(e.key, 'k')) {
+      // Commits without sending (Japanese input stays on), and kills none of the text after it.
+      const { text, end: cursor } = await this.commitInto(e.text)
+      return { kind: 'box', box: { text, cursor, decorations: [] } }
+    }
+
     if (candidates !== undefined) {
       // Converting: the cursor sits at the focused segment's end, so a key typed or a
       // Backspace anywhere in the run counts, and left/right always have room to move.

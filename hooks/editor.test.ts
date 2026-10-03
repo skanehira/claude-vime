@@ -78,6 +78,11 @@ class Box {
     for (const ch of chars) await this.edit({ start: this.cursor, end: this.cursor, inputText: ch, key: { key: ch } })
   }
 
+  /** ctrl+k: a deletion from the cursor to the end of the (one-line) box, possibly empty. */
+  async killToEnd() {
+    return this.edit({ start: this.cursor, end: this.text.length, inputText: '', key: CTRL_K })
+  }
+
   /** A burst of keys or a paste: one edit carrying several characters and no key. */
   async insert(text: string) {
     await this.edit({ start: this.cursor, end: this.cursor, inputText: text })
@@ -124,6 +129,7 @@ const CTRL_B: KeyEvent = { key: 'b', ctrl: true }
 const CTRL_A: KeyEvent = { key: 'a', ctrl: true }
 const CTRL_E: KeyEvent = { key: 'e', ctrl: true }
 const CTRL_Y: KeyEvent = { key: 'y', ctrl: true }
+const CTRL_K: KeyEvent = { key: 'k', ctrl: true }
 
 describe('Composer off', () => {
   test('typing passes through as typed', async () => {
@@ -296,6 +302,29 @@ describe('Composer composing', () => {
     expect(sent).toBe('something else')
   })
 
+  test('ctrl+k commits the kana as it stands, a trailing n as ん, deleting nothing after it', async () => {
+    const { box, composer } = await boxOn('', new FakeEngine(ANSWERS))
+    box.text = 'x'
+    box.cursor = 0
+    await box.type('kan')
+
+    await box.killToEnd()
+
+    expect({ shown: box.shown(), isOn: composer.isOn }).toEqual({
+      shown: { text: 'かんx', cursor: 2, decorations: [] },
+      isOn: true,
+    })
+  })
+
+  test('ctrl+k with nothing composed kills to the end as usual', async () => {
+    const { box } = await boxOn('abc')
+    box.cursor = 1
+
+    const answer = await box.killToEnd()
+
+    expect({ answer, text: box.text }).toEqual({ answer: { kind: 'pass' }, text: 'a' })
+  })
+
   test('ctrl+y yanks killed romaji as it was, not as typed kana', async () => {
     const { box } = await boxOn('ab')
 
@@ -427,6 +456,23 @@ describe('Composer converting', () => {
         ['convert', 'きょうはいい', [[0, -1]]],
         ['convert', 'きょうはいい', [[0, -1], [0, 1]]],
       ],
+    })
+  })
+
+  test('ctrl+k commits the conversion without sending, the engine learning it, and Japanese input stays on', async () => {
+    const { box, engine, composer } = await boxOn('> ')
+    await box.type('kyouhaii')
+    await box.type(' ')
+
+    await box.killToEnd()
+    const committed = box.shown()
+    await box.type('ka')
+
+    expect({ committed, learned: engine.calls.at(-1), isOn: composer.isOn, after: box.shown() }).toEqual({
+      committed: { text: '> 今日は良い', cursor: 7, decorations: [] },
+      learned: ['commit', 'きょうはいい', [], [0, 0]],
+      isOn: true,
+      after: { text: '> 今日は良いか', cursor: 8, decorations: [{ start: 7, end: 8, underline: true }] },
     })
   })
 
