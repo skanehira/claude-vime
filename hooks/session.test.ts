@@ -264,3 +264,143 @@ describe('Session while converting', () => {
     })
   })
 })
+
+describe('Session ASCII mode (;)', () => {
+  test('; opens a part kept as typed, uppercase, digits, symbols and spaces included, until ; again', async () => {
+    const { session } = await typed(';A b-1')
+    const open = { preedit: session.preedit(), isAscii: session.isAscii() }
+
+    await session.input(';')
+
+    expect([open, { preedit: session.preedit(), isAscii: session.isAscii() }]).toEqual([
+      { preedit: { kind: 'composing', text: 'A b-1' }, isAscii: true },
+      { preedit: { kind: 'composing', text: 'A b-1' }, isAscii: false },
+    ])
+  })
+
+  test('kana typed before ; stay pending, and romaji after the closing ; start new kana', async () => {
+    const { session } = await typed('ka;Re;wo')
+
+    expect(session.preedit()).toEqual({ kind: 'composing', text: 'かReを' })
+  })
+
+  test('a conversion converts the first kana part only, the others shown as they are around it', async () => {
+    const { session, engine } = await typed('kyouhaii;React;')
+
+    await session.startConversion()
+
+    expect({ preedit: session.preedit(), calls: engine.calls }).toEqual({
+      preedit: { kind: 'converting', before: '', segments: ['今日は', '良い'], current: 0, after: 'React' },
+      calls: [['convert', 'きょうはいい', []]],
+    })
+  })
+
+  test('the first kana part converted may come after a latin part', async () => {
+    const { session } = await typed(';React;kan')
+
+    await session.startConversion()
+
+    expect(session.preedit()).toEqual({ kind: 'converting', before: 'React', segments: ['缶'], current: 0, after: '' })
+  })
+
+  test('starting a conversion while in ASCII mode asks the engine nothing', async () => {
+    const { session, engine } = await typed('kan;X')
+
+    await session.startConversion()
+
+    expect({ preedit: session.preedit(), calls: engine.calls }).toEqual({
+      preedit: { kind: 'composing', text: 'かんX' },
+      calls: [],
+    })
+  })
+
+  test('commitStep commits the converted part and goes on to convert the next kana part, then answers the whole run', async () => {
+    const { session, engine } = await typed('kyouhaii;X;kan')
+    await session.startConversion()
+
+    const first = await session.commitStep()
+    const between = session.preedit()
+    const last = await session.commitStep()
+
+    expect({ first, between, last, preedit: session.preedit(), calls: engine.calls }).toEqual({
+      first: undefined,
+      between: { kind: 'converting', before: '今日は良いX', segments: ['缶'], current: 0, after: '' },
+      last: '今日は良いX缶',
+      preedit: { kind: 'composing', text: '' },
+      calls: [
+        ['convert', 'きょうはいい', []],
+        ['commit', 'きょうはいい', [], [0, 0]],
+        ['convert', 'かん', []],
+        ['commit', 'かん', [], [0]],
+      ],
+    })
+  })
+
+  test('commit while converting one part converts and learns the other kana parts by their first candidates', async () => {
+    const { session, engine } = await typed('kyouhaii;X;kan')
+    await session.startConversion()
+
+    const committed = await session.commit()
+
+    expect({ committed, isEmpty: session.isEmpty(), calls: engine.calls.slice(1) }).toEqual({
+      committed: '今日は良いX缶',
+      isEmpty: true,
+      calls: [
+        ['commit', 'きょうはいい', [], [0, 0]],
+        ['convert', 'かん', []],
+        ['commit', 'かん', [], [0]],
+      ],
+    })
+  })
+
+  test('commit while composing answers kana, latin parts as typed, and leaves ASCII mode', async () => {
+    const { session } = await typed('kan;Re')
+
+    const committed = await session.commit()
+
+    expect({ committed, isAscii: session.isAscii(), isEmpty: session.isEmpty() }).toEqual({ committed: 'かんRe', isAscii: false, isEmpty: true })
+  })
+
+  test('Backspace removes one latin character and stays in ASCII mode; an emptied part goes away', async () => {
+    const { session } = await typed('ka;Re')
+
+    session.backspace()
+    const once = { preedit: session.preedit(), isAscii: session.isAscii() }
+    session.backspace()
+    const twice = session.preedit()
+    session.backspace()
+
+    expect([once, twice, session.preedit(), session.isAscii()]).toEqual([
+      { preedit: { kind: 'composing', text: 'かR' }, isAscii: true },
+      { kind: 'composing', text: 'か' },
+      { kind: 'composing', text: '' },
+      true,
+    ])
+  })
+
+  test('a run holding only ASCII mode is not empty, and closing it with nothing typed empties it', async () => {
+    const { session } = await typed(';')
+    const opened = { isEmpty: session.isEmpty(), isLatinTail: session.isLatinTail() }
+
+    await session.input(';')
+
+    expect([opened, { isEmpty: session.isEmpty(), isLatinTail: session.isLatinTail() }]).toEqual([
+      { isEmpty: false, isLatinTail: true },
+      { isEmpty: true, isLatinTail: false },
+    ])
+  })
+
+  test('typing while converting commits first, and ; then opens ASCII mode', async () => {
+    const { session } = await typed('kan')
+    await session.startConversion()
+
+    const committed = await session.input(';')
+    await session.input('X')
+
+    expect({ committed, preedit: session.preedit(), isAscii: session.isAscii() }).toEqual({
+      committed: '缶',
+      preedit: { kind: 'composing', text: 'X' },
+      isAscii: true,
+    })
+  })
+})

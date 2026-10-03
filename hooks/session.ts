@@ -28,8 +28,14 @@ export type Preedit =
   | { kind: 'composing'; text: string }
   | { kind: 'converting'; before: string; segments: readonly string[]; current: number; after: string }
 
-/** One part of the run. */
-type Part = { kind: 'kana'; romaji: string }
+/** The key that opens and closes ASCII mode, as vime.nvim's ascii_toggle defaults to. */
+const ASCII_TOGGLE = ';'
+
+/**
+ * One part of the run: romaji shown as kana, text kept as typed in ASCII mode
+ * (`isClosed` once ; ended it), or text a step of a mixed run already committed.
+ */
+type Part = { kind: 'kana'; romaji: string } | { kind: 'latin'; text: string; isClosed: boolean } | { kind: 'confirmed'; text: string }
 
 type Conversion = {
   /** The index of the kana part being converted. */
@@ -44,14 +50,15 @@ type Conversion = {
 export class Session {
   private parts: Part[] = []
   private conversion: Conversion | undefined
+  private ascii = false
 
   constructor(private readonly engine: ConversionEngine) {}
 
   preedit(): Preedit {
     const c = this.conversion
-    if (c === undefined) return { kind: 'composing', text: shownOf(this.parts) }
-    const before = shownOf(this.parts.slice(0, c.at))
-    const after = shownOf(this.parts.slice(c.at + 1))
+    if (c === undefined) return { kind: 'composing', text: shownOf(this.parts, true) }
+    const before = shownOf(this.parts.slice(0, c.at), false)
+    const after = shownOf(this.parts.slice(c.at + 1), true)
     return { kind: 'converting', before, segments: chosen(c), current: c.current, after }
   }
 
@@ -62,17 +69,40 @@ export class Session {
     return { list: c.segments[c.current]!.candidates, index: c.choices[c.current]! }
   }
 
+  /** In ASCII mode: what is typed goes in as it is, until ; again. */
+  isAscii(): boolean {
+    return this.ascii
+  }
+
+  /** Nothing typed and not in ASCII mode. */
+  isEmpty(): boolean {
+    return this.parts.length === 0 && !this.ascii
+  }
+
+  /** The run ends in a latin part: Space then goes in as a space, as vime.nvim's latin run takes it. */
+  isLatinTail(): boolean {
+    return this.parts.at(-1)?.kind === 'latin'
+  }
+
   /** Adds one typed character; while converting, commits first and answers what was committed. */
   async input(ch: string): Promise<string> {
     const committed = this.conversion === undefined ? '' : await this.commit()
-    this.kanaTail().romaji += ch
+    if (ch === ASCII_TOGGLE) this.toggleAscii()
+    else if (this.ascii) this.latinTail().text += ch
+    else this.kanaTail().romaji += ch
     return committed
   }
 
   /** Removes the last kana while composing (a youon such as きょ is one unit). */
   backspace(): void {
     const tail = this.parts.at(-1)
-    if (this.conversion !== undefined || tail === undefined) return
+    if (this.conversion !== undefined || tail === undefined || tail.kind === 'confirmed') return
+    if (tail.kind === 'latin') {
+      // ASCII mode stays as it is: only ; leaves it.
+      tail.text = tail.text.slice(0, -1)
+      if (tail.text === '') this.parts.pop()
+      return
+    }
     const before = [...toKana(tail.romaji, true)].length
     let romaji = tail.romaji
     while (romaji.length > 0) {
@@ -85,14 +115,8 @@ export class Session {
   }
 
   async startConversion(): Promise<void> {
-    if (this.conversion !== undefined) return
-    const at = this.parts.findIndex(part => part.kind === 'kana')
-    if (at < 0) return
-    const yomi = toKana(this.parts[at]!.romaji)
-    if (yomi === '') return
-    const segments = await this.engine.convert(yomi, [])
-    if (segments.length === 0) return
-    this.conversion = { at, yomi, resizes: [], segments, choices: segments.map(() => 0), current: 0 }
+    if (this.conversion !== undefined || this.ascii) return
+    await this.convertFrom(0)
   }
 
   /** Picks the focused segment's candidate at `index`. */
@@ -126,36 +150,98 @@ export class Session {
     await this.resize(-1)
   }
 
-  /** Ends the session's text: the chosen candidates (learned) or the kana as typed. */
+  /**
+   * Ends the session's text. Converting: the chosen candidates (learned), and
+   * every other kana part converted and learned by its first candidates.
+   * Composing: the kana and latin parts as typed.
+   */
   async commit(): Promise<string> {
-    const c = this.conversion
-    if (c === undefined) {
-      const text = this.parts.map(part => toKana(part.romaji)).join('')
-      this.parts = []
-      return text
+    if (this.conversion !== undefined) {
+      await this.commitConverted()
+      while (await this.convertFrom(0)) await this.commitConverted()
     }
-    await this.engine.commit(c.yomi, c.resizes, c.choices)
-    this.conversion = undefined
-    this.parts = []
-    return chosen(c).join('')
+    return this.finish()
   }
 
-  /** Converting: back to the kana as typed. Composing: drops the kana. */
+  /**
+   * vime.nvim's Enter: commits the converted part and goes on to convert the next
+   * kana part (answering undefined), or, with none left, ends the run and answers it.
+   */
+  async commitStep(): Promise<string | undefined> {
+    if (this.conversion === undefined) return this.finish()
+    const at = this.conversion.at
+    await this.commitConverted()
+    if (await this.convertFrom(at + 1)) return undefined
+    return this.finish()
+  }
+
+  /** Converting: back to the kana as typed. Composing: drops the run and leaves ASCII mode. */
   cancel(): void {
     if (this.conversion !== undefined) {
       this.conversion = undefined
       return
     }
     this.parts = []
+    this.ascii = false
   }
 
-  /** The last part when it is kana, otherwise a new kana part after it. */
-  private kanaTail(): Part {
+  private toggleAscii() {
+    if (!this.ascii) {
+      this.ascii = true
+      this.latinTail()
+      return
+    }
+    this.ascii = false
     const tail = this.parts.at(-1)
-    if (tail !== undefined) return tail
-    const part: Part = { kind: 'kana', romaji: '' }
+    if (tail?.kind !== 'latin') return
+    if (tail.text === '') this.parts.pop()
+    else tail.isClosed = true
+  }
+
+  /** The open latin part at the end, or a new one after the last part. */
+  private latinTail(): Extract<Part, { kind: 'latin' }> {
+    const tail = this.parts.at(-1)
+    if (tail?.kind === 'latin' && !tail.isClosed) return tail
+    const part = { kind: 'latin' as const, text: '', isClosed: false }
     this.parts.push(part)
     return part
+  }
+
+  /** The kana part at the end, or a new one after the last part. */
+  private kanaTail(): Extract<Part, { kind: 'kana' }> {
+    const tail = this.parts.at(-1)
+    if (tail?.kind === 'kana') return tail
+    const part = { kind: 'kana' as const, romaji: '' }
+    this.parts.push(part)
+    return part
+  }
+
+  /** Converts the first kana part at or after `from`; false when there is none to convert. */
+  private async convertFrom(from: number): Promise<boolean> {
+    const at = this.parts.findIndex((part, i) => i >= from && part.kind === 'kana' && toKana(part.romaji) !== '')
+    if (at < 0) return false
+    const yomi = toKana((this.parts[at] as Extract<Part, { kind: 'kana' }>).romaji)
+    const segments = await this.engine.convert(yomi, [])
+    if (segments.length === 0) return false
+    this.conversion = { at, yomi, resizes: [], segments, choices: segments.map(() => 0), current: 0 }
+    return true
+  }
+
+  /** Learns the conversion and puts its chosen text in place of its part. */
+  private async commitConverted() {
+    const c = this.conversion
+    if (c === undefined) return
+    await this.engine.commit(c.yomi, c.resizes, c.choices)
+    this.parts[c.at] = { kind: 'confirmed', text: chosen(c).join('') }
+    this.conversion = undefined
+  }
+
+  /** The run as committed text; the session is empty afterwards. */
+  private finish(): string {
+    const text = this.parts.map(part => (part.kind === 'kana' ? toKana(part.romaji) : part.text)).join('')
+    this.parts = []
+    this.ascii = false
+    return text
   }
 
   private moveCandidate(delta: number) {
@@ -189,9 +275,13 @@ export class Session {
   }
 }
 
-/** The parts as the box shows them while composing: kana with a trailing n held as n. */
-function shownOf(parts: readonly Part[]): string {
-  return parts.map(part => toKana(part.romaji, true)).join('')
+/**
+ * The parts as the box shows them while composing: a trailing n held as n only
+ * in the last kana part, the one still being typed.
+ */
+function shownOf(parts: readonly Part[], endsRun: boolean): string {
+  const last = parts.length - 1
+  return parts.map((part, i) => (part.kind === 'kana' ? toKana(part.romaji, endsRun && i === last) : part.text)).join('')
 }
 
 function chosen(c: Conversion): string[] {
